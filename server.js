@@ -8,7 +8,7 @@ const app  = express();
 const PORT = 3001;
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: ['http://localhost:5173', 'https://salesflow-5w4.pages.dev'],
   credentials: true,
 }));
 app.use(express.json());

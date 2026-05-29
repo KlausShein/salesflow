@@ -110,7 +110,7 @@ Week-over-week change: ${weekChangePct > 0 ? '+' : ''}${weekChangePct}%
 
 Give insight about trends, best days, and one specific recommendation.`;
 
-    const response = await fetch('http://localhost:3001/api/ai-insight', {
+    const response = await fetch('https://salesflow-production.up.railway.app/api/ai-insight', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ prompt }),
