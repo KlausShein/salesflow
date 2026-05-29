@@ -209,7 +209,7 @@ const handleAitab = () => {
             <BarChart data={trendData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₱${(Number(v) / 1000).toFixed(0)}k`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `₱${(Number(v) / 1000).toFixed(0)}k`} />
               <Tooltip formatter={salesFormatter} />
               <Bar dataKey="amount" fill="#7F77DD" radius={[4, 4, 0, 0]} />
               {avg7 > 0 && (
@@ -302,7 +302,7 @@ const handleAitab = () => {
                 <LineChart data={forecastData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,0.15)" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₱${(Number(v) / 1000).toFixed(0)}k`} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `₱${(Number(v) / 1000).toFixed(0)}k`} />
                   <Tooltip formatter={forecastFormatter} />
                   <Line type="monotone" dataKey="forecast" stroke="#7F77DD"
                     strokeDasharray="5 3" strokeWidth={2} dot={{ fill: '#7F77DD', r: 3 }} />
