@@ -6,6 +6,7 @@ import {
   SystemUser,
   BusinessSettings,
 } from '../types';
+import { addSystemLog } from './systemLogs';
 
 // ─── helpers ─────────────────────────────────────────────────
 const capitalize = (s: string): 'Active' | 'Inactive' => {
@@ -54,13 +55,11 @@ const row2User = (r: any): SystemUser => ({
 
 // ─── Get owner ID (works for both owner and staff) ───────────
 const getUid = async (): Promise<string> => {
-  // Owner: has Supabase auth session
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.id) return user.id;
   } catch { /* no session */ }
 
-  // Staff: use ownerId stored in localStorage after staff_login
   try {
     const stored = localStorage.getItem('printpos_active_user');
     if (stored) {
@@ -84,7 +83,6 @@ export const fetchSales = async (): Promise<SalesRecord[]> => {
   return (data ?? []).map(row2Sale);
 };
 
-// ─── upsertSale: uses security definer RPC to bypass RLS for staff ───
 export const upsertSale = async (
   date: string,
   amount: number,
@@ -104,6 +102,13 @@ export const upsertSale = async (
     .single();
 
   if (error) throw error;
+
+  addSystemLog(
+    'Sale Saved',
+    `P${amount.toLocaleString()} on ${displayDate}${notes ? ` — ${notes}` : ''}`,
+    'sale'
+  );
+
   return row2Sale(data);
 };
 
@@ -115,6 +120,8 @@ export const deleteSale = async (id: string): Promise<void> => {
     .eq('id', id)
     .eq('owner_id', uid);
   if (error) throw error;
+
+  addSystemLog('Sale Deleted', `Sale ID: ${id}`, 'delete');
 };
 
 export const deleteAllSales = async (): Promise<void> => {
@@ -124,6 +131,8 @@ export const deleteAllSales = async (): Promise<void> => {
     .delete()
     .eq('owner_id', uid);
   if (error) throw error;
+
+  addSystemLog('All Sales Deleted', 'All sales records deleted', 'delete');
 };
 
 // ─── Expenses ────────────────────────────────────────────────
@@ -156,6 +165,13 @@ export const insertExpense = async (
     .select()
     .single();
   if (error) throw error;
+
+  addSystemLog(
+    'Expense Added',
+    `${expense.description} — P${expense.amount.toLocaleString()} (${expense.category})`,
+    'expense'
+  );
+
   return row2Expense(data);
 };
 
@@ -187,6 +203,9 @@ export const insertCustomer = async (
     .select()
     .single();
   if (error) throw error;
+
+  addSystemLog('Customer Added', `${c.name} — ${c.phone}`, 'sale');
+
   return row2Customer(data);
 };
 
@@ -221,6 +240,9 @@ export const insertSystemUser = async (
     .select()
     .single();
   if (error) throw error;
+
+  addSystemLog('User Created', `${u.name} (${u.role}) — @${u.username}`, 'auth');
+
   return row2User(data);
 };
 
@@ -237,6 +259,8 @@ export const toggleUserStatus = async (
     .eq('id', id)
     .eq('owner_id', uid);
   if (error) throw error;
+
+  addSystemLog('User Status Changed', `User ID: ${id} set to ${next}`, 'auth');
 };
 
 // ─── Business Settings ───────────────────────────────────────
@@ -279,4 +303,6 @@ export const saveSettings = async (s: BusinessSettings): Promise<void> => {
     })
     .eq('owner_id', uid);
   if (error) throw error;
+
+  addSystemLog('Settings Updated', `Business name: ${s.businessName}`, 'settings');
 };

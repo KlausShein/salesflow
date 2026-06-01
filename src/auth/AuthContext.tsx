@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { addSystemLog } from '../services/systemLogs';
 
 export type UserRole = 'admin' | 'cashier' | 'manager';
 
@@ -58,8 +59,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setOwnerSession(session);
         setOwnerLoading(false);
 
-        // Only clear staff session when owner explicitly signs out,
-        // NOT on page load when there was never an owner session.
         if (event === 'SIGNED_OUT') {
           setActiveUser(null);
           localStorage.removeItem(STAFF_KEY);
@@ -72,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const ownerSignUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) return { success: false, error: error.message };
+    addSystemLog('Account Created', `New business account: ${email}`, 'auth');
     return { success: true };
   };
 
@@ -89,10 +89,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     setActiveUser(adminUser);
     localStorage.setItem(STAFF_KEY, JSON.stringify(adminUser));
+
+    addSystemLog('Admin Login', `Signed in as ${email}`, 'auth', 'Admin');
+
     return { success: true };
   };
 
   const ownerLogout = async () => {
+    addSystemLog('Admin Logout', 'Admin signed out', 'auth', 'Admin');
     await supabase.auth.signOut();
     setActiveUser(null);
     localStorage.removeItem(STAFF_KEY);
@@ -109,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('RPC error:',   error);
 
     if (error || !data || data.length === 0) {
+      addSystemLog('Failed Login', `Invalid credentials for: ${username}`, 'auth', username);
       return { success: false, error: 'Invalid username or password.' };
     }
 
@@ -130,11 +135,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setActiveUser(staffUser);
     localStorage.setItem(STAFF_KEY, JSON.stringify(staffUser));
+
+    addSystemLog(
+      'Staff Login',
+      `${found.name} (${found.role}) signed in`,
+      'auth',
+      found.name
+    );
+
     return { success: true };
   };
 
   const staffLogout = () => {
     if (!ownerSession) return;
+
+    addSystemLog('Staff Logout', `${activeUser?.name ?? 'Staff'} signed out`, 'auth', activeUser?.name);
+
     const adminUser: ActiveUser = {
       id:       ownerSession.user.id,
       name:     'Admin',
