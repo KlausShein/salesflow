@@ -84,9 +84,9 @@ export const fetchSales = async (): Promise<SalesRecord[]> => {
 };
 
 export const upsertSale = async (
-  date: string,
-  amount: number,
-  notes: string,
+  date:        string,
+  amount:      number,
+  notes:       string,
   displayDate: string
 ): Promise<SalesRecord> => {
   const uid = await getUid();
@@ -175,6 +175,19 @@ export const insertExpense = async (
   return row2Expense(data);
 };
 
+// ── Delete single expense ─────────────────────────────────── ← NEW
+export const deleteExpense = async (id: string): Promise<void> => {
+  const uid = await getUid();
+  const { error } = await supabase
+    .from('expense_records')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', uid);
+  if (error) throw error;
+
+  addSystemLog('Expense Deleted', `Expense ID: ${id}`, 'delete');
+};
+
 // ─── Customers ───────────────────────────────────────────────
 export const fetchCustomers = async (): Promise<Customer[]> => {
   const uid = await getUid();
@@ -247,7 +260,7 @@ export const insertSystemUser = async (
 };
 
 export const toggleUserStatus = async (
-  id: string,
+  id:            string,
   currentStatus: 'Active' | 'Inactive'
 ): Promise<void> => {
   const uid = await getUid();

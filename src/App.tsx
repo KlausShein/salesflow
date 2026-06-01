@@ -67,24 +67,15 @@ const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
 
 const AppShell: React.FC = () => {
   const { activePage, setActivePage } = useActivePage('dashboard');
-  const now = useLiveClock();
   const { can } = useRole();
 
-  // ── Selected date (shared across topbar + dashboard) ────
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
 
-  // Format for topbar display e.g. "May 29, 2026"
-  const dateLabel = selectedDate
-    ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-        month: 'long',
-        day:   'numeric',
-        year:  'numeric',
-      })
-    : new Date().toLocaleDateString('en-US', {
-        month: 'long',
-        day:   'numeric',
-        year:  'numeric',
-      });
+  const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'long',
+    day:   'numeric',
+    year:  'numeric',
+  });
 
   const {
     records: sales,
@@ -96,10 +87,11 @@ const AppShell: React.FC = () => {
   } = useSupaSales();
 
   const {
-    records: expenses,
-    loading: expensesLoading,
-    error:   expensesError,
+    records:  expenses,
+    loading:  expensesLoading,
+    error:    expensesError,
     addExpense,
+    removeExpense,          // ← destructure
   } = useSupaExpenses();
 
   const { customers, loading: custLoading,     addCustomer }           = useSupaCustomers();
@@ -123,7 +115,7 @@ const AppShell: React.FC = () => {
             sales={sales}
             expenses={expenses}
             categories={DISTRIBUTION_CATEGORIES}
-            selectedDate={selectedDate}                                        // ← pass date
+            selectedDate={selectedDate}
             onSaveSale={can('canAddSales') ? addOrUpdateSale : async () => {}}
           />
         );
@@ -142,6 +134,7 @@ const AppShell: React.FC = () => {
           <ExpensesPage
             records={expenses}
             onAdd={addExpense}
+            onDelete={removeExpense}           // ← pass here
             canAdd={can('canAddExpenses')}
             canDelete={can('canDeleteExpenses')}
           />
@@ -199,7 +192,7 @@ const AppShell: React.FC = () => {
           pageTitle={PAGE_TITLES[activePage] ?? ''}
           dateLabel={dateLabel}
           selectedDate={selectedDate}
-          onDateChange={setSelectedDate}        // ← wire up date change
+          onDateChange={setSelectedDate}
         />
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {renderPage()}

@@ -8,13 +8,13 @@ import {
 } from '../types';
 import {
   fetchSales,       upsertSale,
-  deleteSale,       deleteAllSales,      // ← NEW
-  fetchExpenses,    insertExpense,
+  deleteSale,       deleteAllSales,
+  fetchExpenses,    insertExpense,    deleteExpense,  // ← added deleteExpense
   fetchCustomers,   insertCustomer,
   fetchSystemUsers, insertSystemUser, toggleUserStatus,
   fetchSettings,    saveSettings,
 } from '../services/db';
-import { isoToDisplay } from '../utils/helpers';
+import { isoToDisplay }    from '../utils/helpers';
 import { BUSINESS_SETTINGS } from '../data/seed';
 
 // ─── Sales ──────────────────────────────────────────────────
@@ -34,11 +34,11 @@ export const useSupaSales = () => {
     async (date: string, amount: number, notes: string) => {
       const display = isoToDisplay(date);
       const record  = await upsertSale(date, amount, notes, display);
-      setRecords((prev) => {
-        const idx = prev.findIndex((r) => r.date === date);
+      setRecords(prev => {
+        const idx = prev.findIndex(r => r.date === date);
         if (idx >= 0) {
           const next = [...prev];
-          next[idx] = record;
+          next[idx]  = record;
           return next;
         }
         return [record, ...prev];
@@ -47,13 +47,11 @@ export const useSupaSales = () => {
     []
   );
 
-  // ── Delete one ─────────────────────────────────────────    ← NEW
   const removeSale = useCallback(async (id: string) => {
     await deleteSale(id);
-    setRecords((prev) => prev.filter((r) => r.id !== id));
+    setRecords(prev => prev.filter(r => r.id !== id));
   }, []);
 
-  // ── Delete all ─────────────────────────────────────────    ← NEW
   const removeAllSales = useCallback(async () => {
     await deleteAllSales();
     setRecords([]);
@@ -77,10 +75,16 @@ export const useSupaExpenses = () => {
 
   const addExpense = useCallback(async (expense: Omit<ExpenseRecord, 'id'>) => {
     const record = await insertExpense(expense);
-    setRecords((prev) => [record, ...prev]);
+    setRecords(prev => [record, ...prev]);
   }, []);
 
-  return { records, loading, error, addExpense };
+  // ── Delete single expense ──────────────────────────────── ← NEW
+  const removeExpense = useCallback(async (id: string) => {
+    await deleteExpense(id);
+    setRecords(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  return { records, loading, error, addExpense, removeExpense };
 };
 
 // ─── Customers ───────────────────────────────────────────────
@@ -97,7 +101,7 @@ export const useSupaCustomers = () => {
 
   const addCustomer = useCallback(async (c: Omit<Customer, 'id'>) => {
     const record = await insertCustomer(c);
-    setCustomers((prev) => [record, ...prev]);
+    setCustomers(prev => [record, ...prev]);
   }, []);
 
   return { customers, loading, addCustomer };
@@ -117,12 +121,12 @@ export const useSupaUsers = () => {
 
   const addUser = useCallback(async (u: Omit<SystemUser, 'id'>) => {
     const record = await insertSystemUser(u);
-    setUsers((prev) => [record, ...prev]);
+    setUsers(prev => [record, ...prev]);
   }, []);
 
   const toggleStatus = useCallback(
     async (id: string) => {
-      const user = users.find((u) => u.id === id);
+      const user = users.find(u => u.id === id);
       if (!user) return;
 
       const next: 'Active' | 'Inactive' =
@@ -130,8 +134,8 @@ export const useSupaUsers = () => {
 
       await toggleUserStatus(id, user.status);
 
-      setUsers((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, status: next } : u))
+      setUsers(prev =>
+        prev.map(u => (u.id === id ? { ...u, status: next } : u))
       );
     },
     [users]
