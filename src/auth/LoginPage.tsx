@@ -1,23 +1,24 @@
 import React, { useState } from 'react';
 import bgImage   from '../assets/login-bg.png';
 import logoImage from '../assets/Logo-pg.png';
-import { useAuth }       from './AuthContext';
-import LoadingScreen     from '../components/shared/LoadingScreen';
+import { useAuth }   from './AuthContext';
+import LoadingScreen from '../components/shared/LoadingScreen';
 
 type Mode = 'owner' | 'staff' | 'signup';
 
 export default function LoginPage() {
-  const { ownerLogin, ownerSignUp, staffLogin, ownerSession } = useAuth();
+  const { ownerLogin, ownerSignUp, staffLogin } = useAuth();
 
-  const [mode,       setMode]       = useState<Mode>(ownerSession ? 'staff' : 'owner');
-  const [email,      setEmail]      = useState('');
-  const [username,   setUsername]   = useState('');
-  const [password,   setPassword]   = useState('');
-  const [showPass,   setShowPass]   = useState(false);
-  const [error,      setError]      = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState('');
-  const [success,    setSuccess]    = useState('');
+  const [mode,         setMode]         = useState<Mode>('owner');
+  const [email,        setEmail]        = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [username,     setUsername]     = useState('');
+  const [password,     setPassword]     = useState('');
+  const [showPass,     setShowPass]     = useState(false);
+  const [error,        setError]        = useState('');
+  const [loading,      setLoading]      = useState(false);
+  const [loadingMsg,   setLoadingMsg]   = useState('');
+  const [success,      setSuccess]      = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,12 +26,15 @@ export default function LoginPage() {
     setSuccess('');
 
     if (mode === 'signup') {
-      setLoadingMsg('Creating your account...');
+      if (!businessName.trim()) {
+        return setError('Please enter your business name.');
+      }
+      setLoadingMsg('Setting up your business account...');
       setLoading(true);
-      const result = await ownerSignUp(email, password);
+      const result = await ownerSignUp(email, password, businessName.trim());
       setLoading(false);
       if (!result.success) return setError(result.error ?? 'Sign up failed.');
-      setSuccess('Account created! Check your email to confirm, then sign in.');
+      setSuccess('Account created! You can now sign in.');
       setMode('owner');
       return;
     }
@@ -55,7 +59,6 @@ export default function LoginPage() {
 
   return (
     <>
-      {/* ── Lottie loading overlay ── */}
       {loading && <LoadingScreen message={loadingMsg} />}
 
       <div style={styles.root}>
@@ -64,11 +67,8 @@ export default function LoginPage() {
         <div style={styles.left}>
           <div style={styles.brand}>
             <div style={styles.logoBox}>
-              <img
-                src={logoImage}
-                alt="Sales Flow Logo"
-                style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 10 }}
-              />
+              <img src={logoImage} alt="Sales Flow Logo"
+                style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 10 }} />
             </div>
             <div>
               <div style={styles.brandName}>Sales Flow</div>
@@ -96,7 +96,7 @@ export default function LoginPage() {
         <div style={styles.right}>
           <div style={styles.card}>
 
-            {!ownerSession && (
+            {mode !== 'staff' && (
               <div style={styles.tabs}>
                 <button
                   style={{ ...styles.tab, ...(mode === 'owner'  ? styles.tabActive : {}) }}
@@ -120,14 +120,39 @@ export default function LoginPage() {
                                      'Staff login'}
               </h2>
               <p style={styles.cardSub}>
-                {mode === 'signup' ? 'Register your print shop'         :
-                 mode === 'owner'  ? 'Sign in with your business email' :
+                {mode === 'signup' ? 'Register your business — takes 30 seconds' :
+                 mode === 'owner'  ? 'Sign in with your business email'           :
                                      'Enter your staff credentials'}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} style={styles.form}>
 
+              {/* Business name — signup only */}
+              {mode === 'signup' && (
+                <div style={styles.field}>
+                  <label style={styles.label}>Business Name</label>
+                  <div style={styles.inputWrap}>
+                    <span style={styles.inputIcon}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="#8b9cbf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                      </svg>
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="e.g. Sunshine Print Shop"
+                      value={businessName}
+                      onChange={(e) => setBusinessName(e.target.value)}
+                      style={styles.input}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Email — owner & signup */}
               {(mode === 'owner' || mode === 'signup') && (
                 <div style={styles.field}>
                   <label style={styles.label}>Email</label>
@@ -152,6 +177,7 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Username — staff only */}
               {mode === 'staff' && (
                 <div style={styles.field}>
                   <label style={styles.label}>Username</label>
@@ -176,6 +202,7 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Password — all modes */}
               <div style={styles.field}>
                 <label style={styles.label}>Password</label>
                 <div style={styles.inputWrap}>
@@ -195,12 +222,8 @@ export default function LoginPage() {
                     autoComplete="current-password"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass(!showPass)}
-                    style={styles.eyeBtn}
-                    title={showPass ? 'Hide password' : 'Show password'}
-                  >
+                  <button type="button" onClick={() => setShowPass(!showPass)}
+                    style={styles.eyeBtn} title={showPass ? 'Hide' : 'Show'}>
                     {showPass ? (
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                         stroke="#8b9cbf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -218,7 +241,7 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {error && (
+              {error   && (
                 <div style={styles.errorBox}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                     stroke="#e74c3c" strokeWidth="2" strokeLinecap="round"
@@ -230,26 +253,24 @@ export default function LoginPage() {
                   {error}
                 </div>
               )}
-
               {success && <div style={styles.successBox}>{success}</div>}
 
               <button type="submit" style={styles.submitBtn} disabled={loading}>
-                {mode === 'signup' ? 'Create Account'  :
-                 mode === 'owner'  ? 'Sign In'          :
+                {mode === 'signup' ? 'Create Account & Set Up Business' :
+                 mode === 'owner'  ? 'Sign In'                          :
                                     'Sign In as Staff'}
               </button>
             </form>
 
             {mode === 'owner' && (
               <button style={styles.switchBtn}
-                onClick={() => { setMode('staff'); setError(''); }}>
+                onClick={() => { setMode('staff'); setError(''); setSuccess(''); }}>
                 Sign in as staff instead →
               </button>
             )}
-
-            {mode === 'staff' && !ownerSession && (
+            {mode === 'staff' && (
               <button style={styles.switchBtn}
-                onClick={() => { setMode('owner'); setError(''); }}>
+                onClick={() => { setMode('owner'); setError(''); setSuccess(''); }}>
                 ← Back to business login
               </button>
             )}
@@ -273,22 +294,15 @@ export default function LoginPage() {
 
 const styles: Record<string, React.CSSProperties> = {
   root: {
-    display: 'flex',
-    minHeight: '100vh',
+    display: 'flex', minHeight: '100vh',
     fontFamily: "'Inter', -apple-system, sans-serif",
     backgroundColor: '#0f1117',
   },
   left: {
     width: '45%',
-    backgroundImage: `linear-gradient(
-      rgba(10,14,30,0.78),
-      rgba(10,14,30,0.88)
-    ), url(${bgImage})`,
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
-    padding: '48px',
-    display: 'flex',
-    flexDirection: 'column',
+    backgroundImage: `linear-gradient(rgba(10,14,30,0.78),rgba(10,14,30,0.88)), url(${bgImage})`,
+    backgroundSize: 'cover', backgroundPosition: 'center',
+    padding: '48px', display: 'flex', flexDirection: 'column',
     justifyContent: 'space-between',
     borderRight: '1px solid rgba(255,255,255,0.06)',
   },
@@ -308,7 +322,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#ffffff', fontSize: '42px', fontWeight: 800,
     lineHeight: 1.2, margin: '0 0 20px', letterSpacing: '-0.5px',
   },
-  tagline:  { color: '#6b7db3', fontSize: '16px', lineHeight: 1.6, margin: 0, maxWidth: '340px' },
+  tagline: { color: '#6b7db3', fontSize: '16px', lineHeight: 1.6, margin: 0, maxWidth: '340px' },
   quoteBox: { paddingTop: '32px', borderTop: '1px solid rgba(255,255,255,0.06)' },
   quoteText: {
     color: '#ffffff', fontSize: '15px', fontWeight: 600,

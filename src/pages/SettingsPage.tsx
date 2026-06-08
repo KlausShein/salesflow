@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BusinessSettings } from '../types';
 import { getSystemLogs, clearSystemLogs, LogEntry } from '../services/systemLogs';
+import {
+  loadGeneralSettings, saveGeneralSettings,
+  applyTheme, showNotification,
+  GeneralSettings, DEFAULT_GENERAL,
+} from '../services/generalSettings';
 
 interface SettingsPageProps {
   settings: BusinessSettings;
@@ -8,7 +13,6 @@ interface SettingsPageProps {
   canEdit:  boolean;
 }
 
-// ── Receipt settings ─────────────────────────────────────────
 interface ReceiptSettings {
   headerText:       string;
   footerText:       string;
@@ -20,40 +24,16 @@ interface ReceiptSettings {
 }
 
 const DEFAULT_RECEIPT: ReceiptSettings = {
-  headerText:       'Thank you for your business!',
-  footerText:       'Please come again.',
-  receiptPrefix:    'RCP',
+  headerText: 'Thank you for your business!',
+  footerText: 'Please come again.',
+  receiptPrefix: 'RCP',
   showBusinessName: true,
-  showPhone:        true,
-  showAddress:      true,
-  autoPrint:        false,
-};
-
-// ── General settings ─────────────────────────────────────────
-interface GeneralSettings {
-  theme:              'light' | 'dark' | 'system';
-  language:           'en' | 'fil';
-  currency:           'PHP' | 'USD';
-  timezone:           string;
-  notifSale:          boolean;
-  notifExpense:       boolean;
-  notifLowBalance:    boolean;
-  notifDailySummary:  boolean;
-}
-
-const DEFAULT_GENERAL: GeneralSettings = {
-  theme:             'light',
-  language:          'en',
-  currency:          'PHP',
-  timezone:          'Asia/Manila',
-  notifSale:         true,
-  notifExpense:      true,
-  notifLowBalance:   false,
-  notifDailySummary: false,
+  showPhone: true,
+  showAddress: true,
+  autoPrint: false,
 };
 
 const RECEIPT_KEY = 'printpos_receipt_settings';
-const GENERAL_KEY = 'printpos_general_settings';
 
 const SECTIONS = [
   { id: 'business', label: 'Business Information', icon: 'ti-building-store' },
@@ -73,36 +53,35 @@ const TYPE_COLORS: Record<LogEntry['type'], { bg: string; color: string; label: 
 };
 
 const TIMEZONES = [
-  'Asia/Manila',
-  'Asia/Singapore',
-  'Asia/Tokyo',
-  'Asia/Hong_Kong',
-  'Asia/Kuala_Lumpur',
-  'Australia/Sydney',
-  'Europe/London',
-  'America/New_York',
-  'America/Los_Angeles',
-  'UTC',
+  'Asia/Manila','Asia/Singapore','Asia/Tokyo','Asia/Hong_Kong',
+  'Asia/Kuala_Lumpur','Australia/Sydney','Europe/London',
+  'America/New_York','America/Los_Angeles','UTC',
 ];
 
 const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }) => {
-  const [active,         setActive]         = useState('business');
-  const [form,           setForm]           = useState<BusinessSettings>(settings);
-  const [saved,          setSaved]          = useState(false);
-  const [receipt,        setReceipt]        = useState<ReceiptSettings>(DEFAULT_RECEIPT);
-  const [receiptSaved,   setReceiptSaved]   = useState(false);
-  const [general,        setGeneral]        = useState<GeneralSettings>(DEFAULT_GENERAL);
-  const [generalSaved,   setGeneralSaved]   = useState(false);
-  const [logs,           setLogs]           = useState<LogEntry[]>([]);
-  const [logFilter,      setLogFilter]      = useState('all');
-  const [logSearch,      setLogSearch]      = useState('');
+  const [active,       setActive]       = useState('business');
+  const [form,         setForm]         = useState<BusinessSettings>(settings);
+  const [saved,        setSaved]        = useState(false);
+  const [receipt,      setReceipt]      = useState<ReceiptSettings>(DEFAULT_RECEIPT);
+  const [receiptSaved, setReceiptSaved] = useState(false);
+  const [general,      setGeneral]      = useState<GeneralSettings>(DEFAULT_GENERAL);
+  const [generalSaved, setGeneralSaved] = useState(false);
+  const [logs,         setLogs]         = useState<LogEntry[]>([]);
+  const [logFilter,    setLogFilter]    = useState('all');
+  const [logSearch,    setLogSearch]    = useState('');
+  const [now,          setNow]          = useState(new Date());
+
+  // Live clock for timezone preview
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     try {
       const r = localStorage.getItem(RECEIPT_KEY);
       if (r) setReceipt(JSON.parse(r));
-      const g = localStorage.getItem(GENERAL_KEY);
-      if (g) setGeneral(JSON.parse(g));
+      setGeneral(loadGeneralSettings());
     } catch { /* ignore */ }
   }, []);
 
@@ -123,8 +102,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
     setTimeout(() => setReceiptSaved(false), 2000);
   };
 
-  const handleGeneralSave = () => {
-    localStorage.setItem(GENERAL_KEY, JSON.stringify(general));
+  // ── General save: applies theme + requests notification permission ──
+  const handleGeneralSave = async () => {
+    saveGeneralSettings(general);
+    applyTheme(general.theme);
+
+    if (general.notifSale || general.notifExpense || general.notifLowBalance || general.notifDailySummary) {
+      if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      showNotification('Settings Saved ✅', 'Notification preferences updated.', 'notifSale');
+    }
+
     setGeneralSaved(true);
     setTimeout(() => setGeneralSaved(false), 2000);
   };
@@ -164,17 +153,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
       hour: '2-digit', minute: '2-digit',
     });
 
-  // ── Toggle component ─────────────────────────────────────
   const Toggle = ({ value, onChange, disabled }: { value: boolean; onChange: () => void; disabled?: boolean }) => (
-    <div
-      onClick={() => !disabled && onChange()}
-      style={{
-        width: 40, height: 22, borderRadius: 11,
-        background: value ? 'var(--accent)' : '#d1d5db',
-        position: 'relative', transition: 'background .2s',
-        cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
-      }}
-    >
+    <div onClick={() => !disabled && onChange()} style={{
+      width: 40, height: 22, borderRadius: 11,
+      background: value ? 'var(--accent)' : '#d1d5db',
+      position: 'relative', transition: 'background .2s',
+      cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
+    }}>
       <div style={{
         position: 'absolute', top: 3, left: value ? 21 : 3,
         width: 16, height: 16, background: '#fff', borderRadius: '50%',
@@ -185,7 +170,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
 
   const SectionTitle = ({ title, sub }: { title: string; sub?: string }) => (
     <div style={{ marginBottom: 20, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
-      <div style={{ fontSize: 15, fontWeight: 700 }}>{title}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{title}</div>
       {sub && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{sub}</div>}
     </div>
   );
@@ -220,8 +205,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
-
-        {/* Sidebar */}
         <div className="page-card" style={{ padding: 10, height: 'fit-content' }}>
           {SECTIONS.map((s) => (
             <div key={s.id} onClick={() => setActive(s.id)} style={{
@@ -239,16 +222,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
           ))}
         </div>
 
-        {/* Content */}
         <div className="page-card">
 
-          {/* ── Business Information ── */}
+          {/* ── Business ── */}
           {active === 'business' && (
             <div>
               <SectionTitle title="Business Information" />
               <div style={{ display: 'grid', gap: 16, maxWidth: 520 }}>
                 {([
-                  ['Business Name', 'businessName', 'PrintPOS Print Shop'],
+                  ['Business Name',  'businessName', 'My Print Shop'      ],
                   ['Business Owner', 'owner',        'Juan Dela Cruz'     ],
                   ['Address',        'address',      '123 Printing St...' ],
                   ['Phone',          'phone',        '0917 123 4567'      ],
@@ -256,14 +238,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                 ] as [string, keyof BusinessSettings, string][]).map(([label, key, placeholder]) => (
                   <div key={key}>
                     <label className="form-label">{label}</label>
-                    <input
-                      className="form-input"
-                      value={form[key] ?? ''}
-                      placeholder={placeholder}
-                      disabled={!canEdit}
+                    <input className="form-input" value={form[key] ?? ''} placeholder={placeholder} disabled={!canEdit}
                       onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                      style={{ background: canEdit ? '#fff' : 'var(--bg)', cursor: canEdit ? 'text' : 'not-allowed', color: canEdit ? 'var(--text)' : 'var(--muted)' }}
-                    />
+                      style={{ background: canEdit ? '#fff' : 'var(--bg)', cursor: canEdit ? 'text' : 'not-allowed', color: canEdit ? 'var(--text)' : 'var(--muted)' }} />
                   </div>
                 ))}
               </div>
@@ -274,47 +251,52 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
           {/* ── General Settings ── */}
           {active === 'general' && (
             <div>
-              <SectionTitle title="General Settings" sub="Customize your system preferences" />
+              <SectionTitle title="General Settings" sub="Customize your system appearance and preferences" />
               <div style={{ display: 'grid', gap: 24, maxWidth: 520 }}>
 
-                {/* Theme */}
+                {/* Theme — applies live on click */}
                 <div>
                   <label className="form-label">Theme</label>
                   <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                    {([['light', 'ti-sun', 'Light'], ['dark', 'ti-moon', 'Dark'], ['system', 'ti-device-laptop', 'System']] as const).map(([val, icon, label]) => (
-                      <button
-                        key={val}
-                        onClick={() => canEdit && setGeneral(g => ({ ...g, theme: val }))}
+                    {([
+                      ['light',  'ti-sun',          'Light' ],
+                      ['dark',   'ti-moon',          'Dark'  ],
+                      ['system', 'ti-device-laptop', 'System'],
+                    ] as const).map(([val, icon, label]) => (
+                      <button key={val}
+                        onClick={() => {
+                          if (!canEdit) return;
+                          setGeneral(g => ({ ...g, theme: val }));
+                          applyTheme(val); // instant preview
+                        }}
                         style={{
-                          flex: 1, padding: '10px 8px', borderRadius: 9,
+                          flex: 1, padding: '12px 8px', borderRadius: 9,
                           border: general.theme === val ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                          background: general.theme === val ? 'var(--accent-light)' : '#fff',
+                          background: general.theme === val ? 'var(--accent-light)' : 'rgba(255,255,255,0.6)',
                           color: general.theme === val ? 'var(--accent)' : 'var(--sub)',
                           cursor: canEdit ? 'pointer' : 'not-allowed',
                           fontWeight: 600, fontSize: 12, fontFamily: 'inherit',
                           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                           transition: 'all .15s',
-                        }}
-                      >
-                        <i className={`ti ${icon}`} style={{ fontSize: 18 }} aria-hidden="true" />
+                        }}>
+                        <i className={`ti ${icon}`} style={{ fontSize: 20 }} aria-hidden="true" />
                         {label}
                       </button>
                     ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                    Theme applies instantly — save to keep on next reload.
                   </div>
                 </div>
 
                 {/* Language */}
                 <div>
                   <label className="form-label">Language</label>
-                  <select
-                    className="filter-select"
-                    value={general.language}
-                    disabled={!canEdit}
+                  <select className="filter-select" value={general.language} disabled={!canEdit}
                     onChange={(e) => setGeneral(g => ({ ...g, language: e.target.value as 'en' | 'fil' }))}
-                    style={{ width: '100%', padding: '10px 14px', background: canEdit ? '#fff' : 'var(--bg)' }}
-                  >
-                    <option value="en">English</option>
-                    <option value="fil">Filipino (Tagalog)</option>
+                    style={{ width: '100%', padding: '10px 14px', background: canEdit ? 'rgba(255,255,255,0.8)' : 'var(--bg)' }}>
+                    <option value="en">🇵🇭 English</option>
+                    <option value="fil">🇵🇭 Filipino (Tagalog)</option>
                   </select>
                 </div>
 
@@ -323,19 +305,17 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                   <label className="form-label">Currency Format</label>
                   <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                     {([['PHP', '₱ Philippine Peso'], ['USD', '$ US Dollar']] as const).map(([val, label]) => (
-                      <button
-                        key={val}
+                      <button key={val}
                         onClick={() => canEdit && setGeneral(g => ({ ...g, currency: val }))}
                         style={{
                           flex: 1, padding: '10px 14px', borderRadius: 9,
                           border: general.currency === val ? '2px solid var(--accent)' : '1.5px solid var(--border)',
-                          background: general.currency === val ? 'var(--accent-light)' : '#fff',
+                          background: general.currency === val ? 'var(--accent-light)' : 'rgba(255,255,255,0.6)',
                           color: general.currency === val ? 'var(--accent)' : 'var(--sub)',
                           cursor: canEdit ? 'pointer' : 'not-allowed',
                           fontWeight: 600, fontSize: 13, fontFamily: 'inherit',
                           transition: 'all .15s',
-                        }}
-                      >
+                        }}>
                         {label}
                       </button>
                     ))}
@@ -345,47 +325,43 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                 {/* Timezone */}
                 <div>
                   <label className="form-label">Timezone</label>
-                  <select
-                    className="filter-select"
-                    value={general.timezone}
-                    disabled={!canEdit}
+                  <select className="filter-select" value={general.timezone} disabled={!canEdit}
                     onChange={(e) => setGeneral(g => ({ ...g, timezone: e.target.value }))}
-                    style={{ width: '100%', padding: '10px 14px', background: canEdit ? '#fff' : 'var(--bg)' }}
-                  >
-                    {TIMEZONES.map(tz => (
-                      <option key={tz} value={tz}>{tz.replace('_', ' ')}</option>
-                    ))}
+                    style={{ width: '100%', padding: '10px 14px', background: canEdit ? 'rgba(255,255,255,0.8)' : 'var(--bg)' }}>
+                    {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
                   </select>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                    Current time: {new Date().toLocaleTimeString('en-PH', { timeZone: general.timezone })} ({general.timezone})
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <i className="ti ti-clock" style={{ fontSize: 12 }} aria-hidden="true" />
+                    Current time: <strong>{now.toLocaleTimeString('en-PH', { timeZone: general.timezone })}</strong> ({general.timezone.replace(/_/g, ' ')})
                   </div>
                 </div>
 
                 {/* Notifications */}
                 <div>
                   <label className="form-label">Notification Preferences</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 10, padding: '16px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 10, padding: 16, background: 'rgba(255,255,255,0.3)', borderRadius: 10, border: '1px solid var(--border)' }}>
                     {([
-                      ['notifSale',         'Sale Saved',         'Notify when a sale is recorded'          ],
-                      ['notifExpense',       'Expense Added',      'Notify when an expense is recorded'      ],
-                      ['notifLowBalance',    'Low Balance Alert',  'Alert when remaining balance is low'     ],
-                      ['notifDailySummary',  'Daily Summary',      'Show a daily summary at end of day'      ],
+                      ['notifSale',         'Sale Saved',        'Notify when a sale is recorded'        ],
+                      ['notifExpense',       'Expense Added',     'Notify when an expense is recorded'    ],
+                      ['notifLowBalance',    'Low Balance Alert', 'Alert when remaining balance is low'   ],
+                      ['notifDailySummary',  'Daily Summary',     'Show a daily summary at end of day'    ],
                     ] as [keyof GeneralSettings, string, string][]).map(([key, label, desc]) => (
                       <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{label}</div>
                           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{desc}</div>
                         </div>
-                        <Toggle
-                          value={general[key] as boolean}
-                          onChange={() => setGeneral(g => ({ ...g, [key]: !g[key] }))}
-                          disabled={!canEdit}
-                        />
+                        <Toggle value={general[key] as boolean} onChange={() => setGeneral(g => ({ ...g, [key]: !g[key] }))} disabled={!canEdit} />
                       </div>
                     ))}
                   </div>
+                  {'Notification' in window && Notification.permission === 'denied' && (
+                    <div style={{ marginTop: 8, fontSize: 11, color: '#dc2626', display: 'flex', gap: 5, alignItems: 'center' }}>
+                      <i className="ti ti-alert-circle" style={{ fontSize: 13 }} />
+                      Browser notifications are blocked. Enable them in your browser settings.
+                    </div>
+                  )}
                 </div>
-
               </div>
               <SaveRow onSave={handleGeneralSave} saved={generalSaved} label="Save General Settings" />
             </div>
@@ -396,7 +372,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
             <div>
               <SectionTitle title="Receipt Settings" sub="Customize what appears on printed receipts" />
               <div style={{ display: 'grid', gap: 18, maxWidth: 520 }}>
-
                 <div>
                   <label className="form-label">Receipt Number Prefix</label>
                   <input className="form-input" value={receipt.receiptPrefix} placeholder="RCP" disabled={!canEdit}
@@ -404,28 +379,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                     style={{ background: canEdit ? '#fff' : 'var(--bg)', cursor: canEdit ? 'text' : 'not-allowed' }} />
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Example: RCP-2026-001</div>
                 </div>
-
                 <div>
                   <label className="form-label">Receipt Header Text</label>
                   <input className="form-input" value={receipt.headerText} placeholder="Thank you for your business!" disabled={!canEdit}
                     onChange={(e) => setReceipt(r => ({ ...r, headerText: e.target.value }))}
                     style={{ background: canEdit ? '#fff' : 'var(--bg)', cursor: canEdit ? 'text' : 'not-allowed' }} />
                 </div>
-
                 <div>
                   <label className="form-label">Receipt Footer Text</label>
                   <input className="form-input" value={receipt.footerText} placeholder="Please come again." disabled={!canEdit}
                     onChange={(e) => setReceipt(r => ({ ...r, footerText: e.target.value }))}
                     style={{ background: canEdit ? '#fff' : 'var(--bg)', cursor: canEdit ? 'text' : 'not-allowed' }} />
                 </div>
-
                 <div>
                   <label className="form-label">Show on Receipt</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
                     {([
-                      ['showBusinessName', 'Business Name'              ],
-                      ['showPhone',        'Phone Number'               ],
-                      ['showAddress',      'Address'                    ],
+                      ['showBusinessName', 'Business Name'               ],
+                      ['showPhone',        'Phone Number'                ],
+                      ['showAddress',      'Address'                     ],
                       ['autoPrint',        'Auto-print after saving sale'],
                     ] as [keyof ReceiptSettings, string][]).map(([key, label]) => (
                       <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: canEdit ? 'pointer' : 'not-allowed' }}>
@@ -435,9 +407,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                     ))}
                   </div>
                 </div>
-
-                {/* Preview */}
-                <div style={{ background: '#f9fafb', border: '1px dashed var(--border)', borderRadius: 10, padding: '16px 20px' }}>
+                <div style={{ background: 'rgba(249,250,251,0.8)', border: '1px dashed var(--border)', borderRadius: 10, padding: '16px 20px' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 10 }}>Receipt Preview</div>
                   <div style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.8, color: 'var(--text)', fontFamily: 'monospace' }}>
                     {receipt.showBusinessName && <div style={{ fontWeight: 700 }}>{form.businessName || 'Your Business'}</div>}
@@ -460,7 +430,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 3 }}>System Logs</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>System Logs</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{logs.length} total entries</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -468,13 +438,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                     <i className="ti ti-download" aria-hidden="true" /> Export CSV
                   </button>
                   {canEdit && (
-                    <button onClick={handleClearLogs} disabled={logs.length === 0} style={{ fontSize: 12, padding: '7px 14px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 9, cursor: logs.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, fontFamily: 'inherit', opacity: logs.length === 0 ? 0.5 : 1 }}>
+                    <button onClick={handleClearLogs} disabled={logs.length === 0}
+                      style={{ fontSize: 12, padding: '7px 14px', background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 9, cursor: logs.length === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, fontFamily: 'inherit', opacity: logs.length === 0 ? 0.5 : 1 }}>
                       <i className="ti ti-trash" aria-hidden="true" /> Clear Logs
                     </button>
                   )}
                 </div>
               </div>
-
               <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <i className="ti ti-search" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14, pointerEvents: 'none' }} aria-hidden="true" />
@@ -489,7 +459,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                   <option value="delete">Delete</option>
                 </select>
               </div>
-
               {filteredLogs.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
                   <i className="ti ti-list-details" style={{ fontSize: 40, opacity: .3, display: 'block', marginBottom: 10 }} aria-hidden="true" />
@@ -502,9 +471,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                 <div style={{ overflowX: 'auto' }}>
                   <table className="data-table">
                     <thead>
-                      <tr>
-                        <th>Timestamp</th><th>User</th><th>Action</th><th>Details</th><th>Type</th>
-                      </tr>
+                      <tr><th>Timestamp</th><th>User</th><th>Action</th><th>Details</th><th>Type</th></tr>
                     </thead>
                     <tbody>
                       {filteredLogs.map((l) => {
@@ -515,9 +482,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                             <td style={{ fontWeight: 600, fontSize: 12 }}>{l.user}</td>
                             <td style={{ fontSize: 12 }}>{l.action}</td>
                             <td style={{ fontSize: 12, color: 'var(--sub)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.details}</td>
-                            <td>
-                              <span style={{ background: tc.bg, color: tc.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5 }}>{tc.label}</span>
-                            </td>
+                            <td><span style={{ background: tc.bg, color: tc.color, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5 }}>{tc.label}</span></td>
                           </tr>
                         );
                       })}
@@ -528,7 +493,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
             </div>
           )}
 
-          {/* ── Coming Soon ── */}
+          {/* Coming Soon */}
           {!['business', 'general', 'receipt', 'logs'].includes(active) && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, color: 'var(--muted)', gap: 12 }}>
               <i className={`ti ${SECTIONS.find((s) => s.id === active)?.icon}`} style={{ fontSize: 48, opacity: .3 }} aria-hidden="true" />
@@ -536,7 +501,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
               <div style={{ fontSize: 13 }}>This section is coming soon.</div>
             </div>
           )}
-
         </div>
       </div>
     </div>

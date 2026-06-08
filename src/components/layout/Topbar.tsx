@@ -33,20 +33,15 @@ const Topbar: React.FC<TopbarProps> = ({
             <i className="ti ti-chevron-down" style={{ fontSize: 13 }} aria-hidden="true" />
           </div>
 
-          {/* Hidden native date input — triggers the picker */}
           <input
             ref={dateRef}
             type="date"
             value={selectedDate ?? ''}
             onChange={(e) => onDateChange?.(e.target.value)}
             style={{
-              position:      'absolute',
-              opacity:       0,
-              width:         '100%',
-              height:        '100%',
-              top:           0,
-              left:          0,
-              pointerEvents: 'none',
+              position: 'absolute', opacity: 0,
+              width: '100%', height: '100%',
+              top: 0, left: 0, pointerEvents: 'none',
             }}
             aria-label="Select date"
           />

@@ -708,6 +708,85 @@ textarea.form-input {
   font-size: 16px;
   transition: background .15s;
 }
+
+/* ── Dark mode theme ─────────────────────────────────────── */
+[data-theme="dark"] {
+  --border:       rgba(255,255,255,0.12);
+  --surface:      rgba(30,35,60,0.75);
+  --bg:           transparent;
+  --text:         #f1f5f9;
+  --sub:          #94a3b8;
+  --muted:        #64748b;
+  --glass:        rgba(15,20,45,0.72);
+  --glass-border: rgba(255,255,255,0.12);
+  --accent-light: rgba(99,102,241,0.2);
+  --green-bg:     rgba(16,185,129,0.15);
+  --green-text:   #34d399;
+  --red-bg:       rgba(239,68,68,0.15);
+  --red-text:     #f87171;
+}
+
+[data-theme="dark"] .stat-card,
+[data-theme="dark"] .page-card,
+[data-theme="dark"] .entry-card,
+[data-theme="dark"] .dist-card,
+[data-theme="dark"] .table-card,
+[data-theme="dark"] .modal-box {
+  background: var(--glass);
+  border-color: var(--glass-border);
+  color: var(--text);
+}
+
+[data-theme="dark"] .topbar {
+  background: rgba(10,14,35,0.88);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .topbar-title,
+[data-theme="dark"] .page-title,
+[data-theme="dark"] .tc-title,
+[data-theme="dark"] .stat-value {
+  color: var(--text);
+}
+
+[data-theme="dark"] .form-input,
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .filter-select {
+  background: rgba(30,35,60,0.6) !important;
+  color: var(--text) !important;
+  border-color: var(--glass-border) !important;
+}
+
+[data-theme="dark"] .data-table th {
+  color: var(--muted);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .data-table td {
+  border-color: rgba(255,255,255,0.05);
+  color: var(--text);
+}
+
+[data-theme="dark"] .data-table tr:hover td {
+  background: rgba(255,255,255,0.05);
+}
+
+[data-theme="dark"] .btn-ghost {
+  background: rgba(255,255,255,0.08);
+  color: var(--sub);
+  border-color: var(--glass-border);
+}
+
+[data-theme="dark"] .btn-ghost:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+[data-theme="dark"] .page-sub,
+[data-theme="dark"] .tc-sub,
+[data-theme="dark"] .stat-label,
+[data-theme="dark"] .form-label {
+  color: var(--muted);
+}
 .icon-btn:hover { background: rgba(255,255,255,0.75); }
 
 .mono { font-family: var(--mono); }

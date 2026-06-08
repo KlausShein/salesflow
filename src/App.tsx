@@ -15,16 +15,21 @@ import ReportsPage       from './pages/ReportsPage';
 import CustomersPage     from './pages/CustomersPage';
 import UsersPage         from './pages/UsersPage';
 import SettingsPage      from './pages/SettingsPage';
+import { initGeneralSettings } from './services/generalSettings';
 import {
   useSupaSales,
   useSupaExpenses,
   useSupaCustomers,
   useSupaUsers,
   useSupaSettings,
+  useSupaDistribution,
 } from './hooks/useSupabase';
-import { useLiveClock, useActivePage } from './hooks';
-import { DISTRIBUTION_CATEGORIES }     from './data/seed';
-import { todayIso }                    from './utils/helpers';
+import { useWorkingDays } from './hooks/useWorkingDays';
+import { useActivePage } from './hooks';
+import { todayIso } from './utils/helpers';
+
+// ── Apply saved theme immediately on app load ────────────────
+initGeneralSettings();
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard:    'Dashboard',
@@ -68,39 +73,43 @@ const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
 const AppShell: React.FC = () => {
   const { activePage, setActivePage } = useActivePage('dashboard');
   const { can } = useRole();
+  const { currentTenantId } = useAuth();
 
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
 
   const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
-    month: 'long',
-    day:   'numeric',
-    year:  'numeric',
+    month: 'long', day: 'numeric', year: 'numeric',
   });
 
   const {
-    records: sales,
-    loading: salesLoading,
-    error:   salesError,
-    addOrUpdateSale,
-    removeSale,
-    removeAllSales,
-  } = useSupaSales();
+    records: sales, loading: salesLoading, error: salesError,
+    addOrUpdateSale, removeSale, removeAllSales,
+  } = useSupaSales(currentTenantId);
 
   const {
-    records:  expenses,
-    loading:  expensesLoading,
-    error:    expensesError,
-    addExpense,
-    removeExpense,          // ← destructure
-  } = useSupaExpenses();
+    records: expenses, loading: expensesLoading, error: expensesError,
+    addExpense, removeExpense,
+  } = useSupaExpenses(currentTenantId);
 
-  const { customers, loading: custLoading,     addCustomer }           = useSupaCustomers();
-  const { users,     loading: usersLoading,    addUser, toggleStatus } = useSupaUsers();
-  const { settings,  loading: settingsLoading, updateSettings }        = useSupaSettings();
+  const { customers, loading: custLoading,     addCustomer }          = useSupaCustomers(currentTenantId);
+  const { users,     loading: usersLoading,    addUser, toggleStatus } = useSupaUsers(currentTenantId);
+  const { settings,  loading: settingsLoading, updateSettings }        = useSupaSettings(currentTenantId);
+
+  const {
+    categories: distributionCats, loading: distLoading,
+    saving: distSaving, updateCategories,
+  } = useSupaDistribution(currentTenantId);
+
+  const {
+    config: workingDays, loading: workingDaysLoading,
+    saving: workingDaysSaving, updateWorkingDays,
+  } = useWorkingDays(currentTenantId);
 
   const isLoading =
-    salesLoading || expensesLoading ||
-    custLoading  || usersLoading    || settingsLoading;
+    salesLoading    || expensesLoading  ||
+    custLoading     || usersLoading     ||
+    settingsLoading || distLoading      ||
+    workingDaysLoading;
 
   const dbError = salesError || expensesError;
 
@@ -114,7 +123,7 @@ const AppShell: React.FC = () => {
           <DashboardPage
             sales={sales}
             expenses={expenses}
-            categories={DISTRIBUTION_CATEGORIES}
+            categories={distributionCats}
             selectedDate={selectedDate}
             onSaveSale={can('canAddSales') ? addOrUpdateSale : async () => {}}
           />
@@ -134,7 +143,7 @@ const AppShell: React.FC = () => {
           <ExpensesPage
             records={expenses}
             onAdd={addExpense}
-            onDelete={removeExpense}           // ← pass here
+            onDelete={removeExpense}
             canAdd={can('canAddExpenses')}
             canDelete={can('canDeleteExpenses')}
           />
@@ -142,8 +151,13 @@ const AppShell: React.FC = () => {
       case 'distribution':
         return can('canViewDistribution') ? (
           <DistributionPage
-            categories={DISTRIBUTION_CATEGORIES}
+            categories={distributionCats}
             salesRecords={sales}
+            workingDays={workingDays}
+            onSave={updateCategories}
+            onSaveWorkingDays={updateWorkingDays}
+            canEdit={can('canEditSettings')}
+            saving={distSaving || workingDaysSaving}
           />
         ) : <AccessDenied pageName="Distribution" />;
       case 'reports':
@@ -151,7 +165,7 @@ const AppShell: React.FC = () => {
           <ReportsPage
             sales={sales}
             expenses={expenses}
-            categories={DISTRIBUTION_CATEGORIES}
+            categories={distributionCats}
           />
         ) : <AccessDenied pageName="Reports" />;
       case 'customers':
