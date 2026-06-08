@@ -16,7 +16,7 @@ export interface Transaction {
 // ── MULTI-TENANT: SalesRecord ─────────────────────────────
 export interface SalesRecord {
   id:          string;
-  tenantId?:   string;   // optional — db.ts injects it automatically
+  tenantId:    string;
   date:        string;
   displayDate: string;
   amount:      number;
@@ -28,14 +28,14 @@ export interface SalesRecord {
 // ── MULTI-TENANT: ExpenseRecord ───────────────────────────
 export interface ExpenseRecord {
   id:          string;
-  tenantId?:   string;   // optional — db.ts injects it automatically
+  tenantId:    string;
   date:        string;
   displayDate: string;
   category:    string;
   description: string;
   amount:      number;
   addedBy?:    string;
-  status?:     'Completed' | 'Pending';  // optional — defaults to 'Completed'
+  status:      'Completed' | 'Pending';
 }
 
 export type ExpenseCategory = string;
@@ -60,7 +60,7 @@ export interface DistributionResult extends DistributionCategory {
 // ── MULTI-TENANT: Customer ────────────────────────────────
 export interface Customer {
   id:             string;
-  tenantId?:      string;   // optional — db.ts injects it automatically
+  tenantId:       string;
   name:           string;
   email?:         string;
   phone?:         string;
@@ -121,7 +121,7 @@ export interface Permission {
 
 // ── Business Settings ─────────────────────────────────────
 export interface BusinessSettings {
-  tenantId?:      string;   // optional — db.ts injects it automatically
+  tenantId:       string;
   businessName:   string;
   owner?:         string;
   address?:       string;
@@ -178,7 +178,7 @@ export interface SaleItem {
 // ── Inventory ──────────────────────────────────────────────
 export interface InventoryItem {
   id:         string;
-  tenantId?:  string;   // optional — db.ts injects it automatically
+  tenantId:   string;
   name:       string;
   category:   string;
   stock:      number;
@@ -191,7 +191,7 @@ export interface InventoryItem {
 // ── Services ───────────────────────────────────────────────
 export interface Service {
   id:           string;
-  tenantId?:    string;   // optional — db.ts injects it automatically
+  tenantId:     string;
   name:         string;
   unit:         string;
   unitPrice:    number;
@@ -229,20 +229,20 @@ export interface FinancialProjection {
   breakEvenSales:            number;
   dailySalesTarget:          number;
   projectedMonthly:          number;
-  totalMonthlyOperatingCost: number;
+  totalMonthlyOperatingCost: number;  // ← renamed
   profitMarginTarget:        number;
   workingDaysPerMonth:       number;
   // Actual metrics (based on real sales)
-  totalActualSales:          number;
-  totalDistributedAmount:    number;
-  actualProfitAmount:        number;
-  actualProfitMargin:        number;
+  totalActualSales:          number;  // ← new
+  totalDistributedAmount:    number;  // ← new
+  actualProfitAmount:        number;  // ← new
+  actualProfitMargin:        number;  // ← new
 }
 
 // ── System Logs ────────────────────────────────────────────
 export interface SystemLog {
   id:        string;
-  tenantId?: string;   // optional
+  tenantId:  string;
   timestamp: string;
   user:      string;
   action:    string;
@@ -253,7 +253,7 @@ export interface SystemLog {
 // ── Payment Methods ───────────────────────────────────────
 export interface PaymentMethod {
   id:              string;
-  tenantId?:       string;   // optional
+  tenantId:        string;
   type:            'cash' | 'card' | 'gcash' | 'paypal' | 'bank_transfer';
   name:            string;
   isActive:        boolean;
@@ -264,7 +264,7 @@ export interface PaymentMethod {
 // ── Backup Records ────────────────────────────────────────
 export interface BackupRecord {
   id:         string;
-  tenantId?:  string;   // optional
+  tenantId:   string;
   fileName:   string;
   backupSize: number;
   status:     'completed' | 'in-progress' | 'failed';
