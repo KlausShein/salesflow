@@ -16,7 +16,7 @@ export interface Transaction {
 // ── MULTI-TENANT: SalesRecord ─────────────────────────────
 export interface SalesRecord {
   id:          string;
-  tenantId:    string;
+  tenantId?:   string;   // optional — db.ts injects it automatically
   date:        string;
   displayDate: string;
   amount:      number;
@@ -28,14 +28,14 @@ export interface SalesRecord {
 // ── MULTI-TENANT: ExpenseRecord ───────────────────────────
 export interface ExpenseRecord {
   id:          string;
-  tenantId:    string;
+  tenantId?:   string;   // optional — db.ts injects it automatically
   date:        string;
   displayDate: string;
   category:    string;
   description: string;
   amount:      number;
   addedBy?:    string;
-  status:      'Completed' | 'Pending';
+  status?:     'Completed' | 'Pending';  // optional — defaults to 'Completed'
 }
 
 export type ExpenseCategory = string;
@@ -60,7 +60,7 @@ export interface DistributionResult extends DistributionCategory {
 // ── MULTI-TENANT: Customer ────────────────────────────────
 export interface Customer {
   id:             string;
-  tenantId:       string;
+  tenantId?:      string;   // optional — db.ts injects it automatically
   name:           string;
   email?:         string;
   phone?:         string;
@@ -121,7 +121,7 @@ export interface Permission {
 
 // ── Business Settings ─────────────────────────────────────
 export interface BusinessSettings {
-  tenantId:       string;
+  tenantId?:      string;   // optional — db.ts injects it automatically
   businessName:   string;
   owner?:         string;
   address?:       string;
@@ -178,7 +178,7 @@ export interface SaleItem {
 // ── Inventory ──────────────────────────────────────────────
 export interface InventoryItem {
   id:         string;
-  tenantId:   string;
+  tenantId?:  string;   // optional — db.ts injects it automatically
   name:       string;
   category:   string;
   stock:      number;
@@ -191,7 +191,7 @@ export interface InventoryItem {
 // ── Services ───────────────────────────────────────────────
 export interface Service {
   id:           string;
-  tenantId:     string;
+  tenantId?:    string;   // optional — db.ts injects it automatically
   name:         string;
   unit:         string;
   unitPrice:    number;
@@ -225,19 +225,24 @@ export const DEFAULT_WORKING_DAYS: WorkingDaysConfig = {
 
 // ── Financial Projections ─────────────────────────────────
 export interface FinancialProjection {
-  breakEvenSales:       number;
-  dailySalesTarget:     number;
-  projectedMonthly:     number;
-  totalFixedCosts:      number;
-  profitMargin:         number;
-  workingDaysPerMonth:  number;
-  profitMarginTarget:   number;
+  // Target metrics
+  breakEvenSales:            number;
+  dailySalesTarget:          number;
+  projectedMonthly:          number;
+  totalMonthlyOperatingCost: number;
+  profitMarginTarget:        number;
+  workingDaysPerMonth:       number;
+  // Actual metrics (based on real sales)
+  totalActualSales:          number;
+  totalDistributedAmount:    number;
+  actualProfitAmount:        number;
+  actualProfitMargin:        number;
 }
 
 // ── System Logs ────────────────────────────────────────────
 export interface SystemLog {
   id:        string;
-  tenantId:  string;
+  tenantId?: string;   // optional
   timestamp: string;
   user:      string;
   action:    string;
@@ -248,7 +253,7 @@ export interface SystemLog {
 // ── Payment Methods ───────────────────────────────────────
 export interface PaymentMethod {
   id:              string;
-  tenantId:        string;
+  tenantId?:       string;   // optional
   type:            'cash' | 'card' | 'gcash' | 'paypal' | 'bank_transfer';
   name:            string;
   isActive:        boolean;
@@ -259,7 +264,7 @@ export interface PaymentMethod {
 // ── Backup Records ────────────────────────────────────────
 export interface BackupRecord {
   id:         string;
-  tenantId:   string;
+  tenantId?:  string;   // optional
   fileName:   string;
   backupSize: number;
   status:     'completed' | 'in-progress' | 'failed';

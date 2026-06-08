@@ -37,7 +37,7 @@ export const calculateFinancialProjections = (
 ): FinancialProjection => {
   // Ensure defaults
   if (!categories) categories = [];
-  if (!workingDays) workingDays = { id: 'default', monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false, workingDaysPerMonth: 22 };
+  if (!workingDays) workingDays = { monday: true, tuesday: true, wednesday: true, thursday: true, friday: true, saturday: false, sunday: false, workingDaysPerMonth: 22 };
 
   // Calculate total monthly operating cost (sum of all category amounts)
   const totalMonthlyOperatingCost = categories.reduce((sum, cat) => {
