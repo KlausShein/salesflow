@@ -221,9 +221,9 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
 
       {filtered.length > 0 && (
         <VamSummary items={[
-          { label: 'Total Sales',       value: formatPeso(totalSales),       color: '#818cf8', bg: 'rgba(99,102,241,0.12)'  },
-          { label: 'Total Distributed', value: formatPeso(totalDist),        color: '#34d399', bg: 'rgba(5,150,105,0.12)'   },
-          { label: 'Records',           value: String(filtered.length),      color: '#94a3b8', bg: 'rgba(255,255,255,0.04)' },
+          { label: 'Total Sales',       value: formatPeso(totalSales),  color: '#818cf8', bg: 'rgba(99,102,241,0.12)'  },
+          { label: 'Total Distributed', value: formatPeso(totalDist),   color: '#34d399', bg: 'rgba(5,150,105,0.12)'   },
+          { label: 'Records',           value: String(filtered.length), color: '#94a3b8', bg: 'rgba(255,255,255,0.04)' },
         ]} />
       )}
 
@@ -245,29 +245,19 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
               }}
             >
               <RowNum n={i + 1} color="#818cf8" bg="rgba(99,102,241,0.14)" />
-
-              {/* Date */}
               <div style={{ flexShrink: 0, width: 105 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{s.displayDate}</div>
                 <div style={{ fontSize: 11, color: '#334155', marginTop: 1 }}>{s.date}</div>
               </div>
-
-              {/* Notes */}
               <div style={{ flex: 1, fontSize: 13, color: s.notes ? '#64748b' : '#1e293b', fontStyle: s.notes ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {s.notes || 'No notes'}
               </div>
-
-              {/* Distributed */}
               <div style={{ fontSize: 11, color: '#34d399', flexShrink: 0 }}>
                 dist. {formatPeso(s.distributed)}
               </div>
-
-              {/* Amount */}
               <div style={{ fontSize: 15, fontWeight: 700, color: '#818cf8', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>
                 {formatPeso(s.amount)}
               </div>
-
-              {/* Status */}
               <div style={{
                 padding: '3px 10px', borderRadius: 20, fontSize: 11,
                 fontWeight: 600, letterSpacing: '0.2px', flexShrink: 0,
@@ -307,7 +297,6 @@ const ExpensesModal: React.FC<{ isOpen: boolean; onClose: () => void; expenses: 
     >
       <VamSearch value={q} onChange={setQ} placeholder="Search by description, category, or amount…" />
 
-      {/* Category chips */}
       {allCats.length > 2 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {allCats.map(c => (
@@ -355,14 +344,10 @@ const ExpensesModal: React.FC<{ isOpen: boolean; onClose: () => void; expenses: 
               }}
             >
               <RowNum n={i + 1} color="#f87171" bg="rgba(220,38,38,0.12)" />
-
-              {/* Date */}
               <div style={{ flexShrink: 0, width: 105 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{e.displayDate}</div>
                 <div style={{ fontSize: 11, color: '#334155', marginTop: 1 }}>{e.date}</div>
               </div>
-
-              {/* Description + Category */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {e.description || '—'}
@@ -373,16 +358,12 @@ const ExpensesModal: React.FC<{ isOpen: boolean; onClose: () => void; expenses: 
                   </span>
                 )}
               </div>
-
-              {/* Added by */}
               {e.addedBy && (
                 <div style={{ fontSize: 11, color: '#334155', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <i className="ti ti-user" style={{ fontSize: 10 }} />
                   {e.addedBy}
                 </div>
               )}
-
-              {/* Amount */}
               <div style={{ fontSize: 15, fontWeight: 700, color: '#f87171', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>
                 {formatPeso(e.amount)}
               </div>
@@ -399,7 +380,7 @@ interface DashboardPageProps {
   sales:         SalesRecord[];
   expenses:      ExpenseRecord[];
   categories:    DistributionCategory[];
-  onSaveSale:    (date: string, amount: number, notes: string) => void;
+  onSaveSale:    (date: string, amount: number, notes: string) => Promise<void>; // ← FIXED: async
   selectedDate?: string;
 }
 
@@ -408,10 +389,12 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const activeDate = selectedDate ?? todayIso();
 
-  const [salesAmount, setSalesAmount] = useState<string>('');
-  const [entryDate,   setEntryDate]   = useState<string>(activeDate);
-  const [notes,       setNotes]       = useState<string>('');
-  const [saved,       setSaved]       = useState(false);
+  const [salesAmount,  setSalesAmount]  = useState<string>('');
+  const [entryDate,    setEntryDate]    = useState<string>(activeDate);
+  const [notes,        setNotes]        = useState<string>('');
+  const [saved,        setSaved]        = useState(false);
+  const [saving,       setSaving]       = useState(false);       // ← NEW: loading state
+  const [saveError,    setSaveError]    = useState<string | null>(null); // ← NEW: error state
   const [salesOpen,    setSalesOpen]    = useState(false);
   const [expensesOpen, setExpensesOpen] = useState(false);
 
@@ -421,11 +404,24 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const distResults = computeDistribution(amount, categories);
   const stats       = computeDashboardStats(sales, expenses, activeDate);
 
-  const handleSave = useCallback(() => {
+  // ── FIXED: async handleSave that awaits DB operation ──
+  const handleSave = useCallback(async () => {
     if (amount <= 0) return;
-    onSaveSale(entryDate, amount, notes);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSaveSale(entryDate, amount, notes); // ← AWAIT the async save
+      setSaved(true);
+      setSalesAmount('');                          // ← clear form on success
+      setNotes('');
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save sale';
+      setSaveError(msg);
+      console.error('[handleSave] error:', msg);
+    } finally {
+      setSaving(false);
+    }
   }, [amount, entryDate, notes, onSaveSale]);
 
   const recentSales    = sales.slice(0, 5);
@@ -450,7 +446,17 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
           <label className="form-label">Total Sales Amount</label>
           <div className="amount-wrap">
             <div className="amount-symbol">&#8369;</div>
-            <input className="amount-input" type="number" min="0" step="0.01" value={salesAmount} onChange={e => setSalesAmount(e.target.value)} placeholder="0.00" aria-label="Total sales amount" />
+            <input
+              className="amount-input"
+              type="number"
+              min="0"
+              step="0.01"
+              value={salesAmount}
+              onChange={e => setSalesAmount(e.target.value)}
+              placeholder="0.00"
+              aria-label="Total sales amount"
+              disabled={saving}
+            />
           </div>
           <div className="form-hint">Enter 0.00 if no sales today</div>
           <div className="form-row">
@@ -458,17 +464,56 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
               <label className="form-label">Date</label>
               <div style={{ position: 'relative' }}>
                 <i className="ti ti-calendar" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 15, pointerEvents: 'none' }} aria-hidden="true" />
-                <input className="form-input" type="date" value={entryDate} onChange={e => setEntryDate(e.target.value)} style={{ paddingLeft: 34 }} aria-label="Entry date" />
+                <input
+                  className="form-input"
+                  type="date"
+                  value={entryDate}
+                  onChange={e => setEntryDate(e.target.value)}
+                  style={{ paddingLeft: 34 }}
+                  aria-label="Entry date"
+                  disabled={saving}
+                />
               </div>
             </div>
             <div>
               <label className="form-label">Notes (Optional)</label>
-              <textarea className="form-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add notes..." aria-label="Notes" />
+              <textarea
+                className="form-input"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Add notes..."
+                aria-label="Notes"
+                disabled={saving}
+              />
             </div>
           </div>
-          <button className={`btn-save${saved ? ' success' : ''}`} onClick={handleSave} disabled={saved}>
-            <i className={`ti ${saved ? 'ti-check' : 'ti-device-floppy'}`} style={{ fontSize: 16 }} aria-hidden="true" />
-            {saved ? 'Saved!' : 'Save Sales'}
+
+          {/* ── Error message ── */}
+          {saveError && (
+            <div style={{
+              marginTop: 10, padding: '10px 14px',
+              background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 9, fontSize: 13, color: '#ef4444',
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <i className="ti ti-alert-circle" style={{ fontSize: 15, flexShrink: 0 }} />
+              {saveError}
+            </div>
+          )}
+
+          {/* ── Save button ── */}
+          <button
+            className={`btn-save${saved ? ' success' : ''}`}
+            onClick={handleSave}
+            disabled={saved || saving || amount <= 0}
+          >
+            <i
+              className={`ti ${saving ? 'ti-loader-2' : saved ? 'ti-check' : 'ti-device-floppy'}`}
+              style={{ fontSize: 16, animation: saving ? 'spin 1s linear infinite' : undefined }}
+              aria-hidden="true"
+            />
+            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Sales'}
           </button>
         </div>
 
@@ -506,9 +551,19 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           </div>
           <table className="data-table" aria-label="Recent sales">
-            <thead><tr><th>Date</th><th className="right">Total Sales</th><th className="right">Distributed</th><th>Notes</th><th>Action</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th className="right">Total Sales</th>
+                <th className="right">Distributed</th>
+                <th>Notes</th>
+                <th>Action</th>
+              </tr>
+            </thead>
             <tbody>
-              {recentSales.map(r => (
+              {recentSales.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0' }}>No sales records yet</td></tr>
+              ) : recentSales.map(r => (
                 <tr key={r.id}>
                   <td style={{ color: 'var(--sub)' }}>{r.displayDate}</td>
                   <td className="right mono" style={{ color: '#4f46e5', fontWeight: 700 }}>{formatPeso(r.amount)}</td>
@@ -529,9 +584,18 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           </div>
           <table className="data-table" aria-label="Recent expenses">
-            <thead><tr><th>Date</th><th>Description</th><th className="right">Amount</th><th>Action</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th className="right">Amount</th>
+                <th>Action</th>
+              </tr>
+            </thead>
             <tbody>
-              {recentExpenses.map(e => (
+              {recentExpenses.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--muted)', padding: '20px 0' }}>No expense records yet</td></tr>
+              ) : recentExpenses.map(e => (
                 <tr key={e.id}>
                   <td style={{ color: 'var(--sub)' }}>{e.displayDate}</td>
                   <td style={{ fontWeight: 500 }}>{e.description}</td>
@@ -550,6 +614,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* ── Modals ── */}
       <SalesModal    isOpen={salesOpen}    onClose={() => setSalesOpen(false)}    sales={sales}       />
       <ExpensesModal isOpen={expensesOpen} onClose={() => setExpensesOpen(false)} expenses={expenses} />
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

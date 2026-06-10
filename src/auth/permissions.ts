@@ -21,15 +21,15 @@ export const ROLE_PERMISSIONS: Record<SystemUserRole, Permission> = {
   Manager: {
     canViewDashboard:    true,
     canViewSales:        true,
-    canAddSales:         false,
+    canAddSales:         true,   // ← Managers can add sales
     canDeleteSales:      false,
     canViewExpenses:     true,
-    canAddExpenses:      false,
+    canAddExpenses:      true,   // ← Managers can add expenses
     canDeleteExpenses:   false,
     canViewReports:      true,
     canViewDistribution: true,
     canViewCustomers:    true,
-    canAddCustomers:     false,
+    canAddCustomers:     true,
     canViewUsers:        true,
     canManageUsers:      false,
     canViewSettings:     true,
@@ -38,10 +38,10 @@ export const ROLE_PERMISSIONS: Record<SystemUserRole, Permission> = {
   Cashier: {
     canViewDashboard:    true,
     canViewSales:        true,
-    canAddSales:         true,
+    canAddSales:         true,   // ← Can add sales
     canDeleteSales:      false,
-    canViewExpenses:     false,
-    canAddExpenses:      false,
+    canViewExpenses:     true,   // ← Can view expenses
+    canAddExpenses:      true,   // ← Can add expenses
     canDeleteExpenses:   false,
     canViewReports:      false,
     canViewDistribution: false,
@@ -55,8 +55,8 @@ export const ROLE_PERMISSIONS: Record<SystemUserRole, Permission> = {
   Staff: {
     canViewDashboard:    true,
     canViewSales:        true,
-    canAddSales:         false,
-    canDeleteSales:      false,
+    canAddSales:         true,   // ← FIXED: Staff can now add sales
+    canDeleteSales:      false,  // ← Cannot delete
     canViewExpenses:     false,
     canAddExpenses:      false,
     canDeleteExpenses:   false,

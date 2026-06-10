@@ -41,9 +41,12 @@ export const useSupaSales = (tenantId: string | null) => {
       .finally(() => setLoading(false));
   }, [tenantId]);
 
+  // ── Returns Promise<void> — throws on error so DashboardPage
+  //    can catch it in its own try/catch and show proper error UI ──
   const addOrUpdateSale = useCallback(
-    async (date: string, amount: number, notes: string) => {
+    async (date: string, amount: number, notes: string): Promise<void> => {
       const display = isoToDisplay(date);
+      // upsertSale throws if the DB insert fails — error propagates up
       const record  = await upsertSale(date, amount, notes, display);
       setRecords(prev => {
         const idx = prev.findIndex(r => r.date === date);
@@ -136,9 +139,14 @@ export const useSupaUsers = (tenantId: string | null) => {
   }, [tenantId]);
 
   const addUser = useCallback(async (u: Omit<SystemUser, 'id'>) => {
-    const record = await insertSystemUser(u);
+    // Pass tenantId explicitly — ensures user is always assigned to
+    // the correct tenant regardless of what's in localStorage
+    if (!isReady(tenantId)) {
+      throw new Error('Cannot create user: no valid tenant selected.');
+    }
+    const record = await insertSystemUser(u, tenantId);
     setUsers(prev => [record, ...prev]);
-  }, []);
+  }, [tenantId]);
 
   const toggleStatus = useCallback(async (id: string) => {
     const user = users.find(u => u.id === id);

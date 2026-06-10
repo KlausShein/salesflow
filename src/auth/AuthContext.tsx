@@ -38,12 +38,18 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const STAFF_KEY  = 'printpos_active_user';
 const TENANT_KEY = 'printpos_active_tenant';
 
+const clearLocalAuth = () => {
+  localStorage.removeItem(STAFF_KEY);
+  localStorage.removeItem(TENANT_KEY);
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ownerSession,    setOwnerSession]    = useState<Session | null>(null);
   const [ownerLoading,    setOwnerLoading]    = useState(true);
   const [activeUser,      setActiveUser]      = useState<ActiveUser | null>(null);
   const [currentTenantId, setCurrentTenantId] = useState<string | null>(null);
 
+  // ── Restore session from localStorage on mount ─────────────
   useEffect(() => {
     const storedUser   = localStorage.getItem(STAFF_KEY);
     const storedTenant = localStorage.getItem(TENANT_KEY);
@@ -68,8 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ── Monitor Supabase auth state ────────────────────────────
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        // Stale/invalid refresh token — force re-login
+        console.warn('Stale session detected:', error.message);
+        supabase.auth.signOut();
+        setActiveUser(null);
+        setCurrentTenantId(null);
+        clearLocalAuth();
+      }
       setOwnerSession(session);
       setOwnerLoading(false);
     });
@@ -78,46 +93,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (event, session) => {
         setOwnerSession(session);
         setOwnerLoading(false);
+
         if (event === 'SIGNED_OUT') {
           setActiveUser(null);
           setCurrentTenantId(null);
-          localStorage.removeItem(STAFF_KEY);
-          localStorage.removeItem(TENANT_KEY);
+          clearLocalAuth();
+        }
+
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          supabase.auth.signOut();
+          setActiveUser(null);
+          setCurrentTenantId(null);
+          clearLocalAuth();
         }
       }
     );
     return () => subscription.unsubscribe();
   }, []);
 
-  // ── Admin: Sign up + auto-create tenant ──
+  // ── Admin: Sign Up ─────────────────────────────────────────
+  // Creates auth user + tenant + system_user + settings in one flow.
+  // This is the ONLY place a tenant gets created for an owner.
   const ownerSignUp = async (
     email:        string,
     password:     string,
     businessName: string = 'My Business'
   ) => {
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+    // 1. Create Supabase auth user
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
     if (signUpError) return { success: false, error: signUpError.message };
     if (!signUpData.user) return { success: false, error: 'Sign up failed.' };
 
     const userId  = signUpData.user.id;
     const session = signUpData.session;
 
+    // If email confirmation is required, session is null.
+    // Tenant will NOT be created yet — it gets created on first login
+    // via the setupOwnerTenant call in ownerLogin (only when no tenant exists).
+    // We store pending setup info so ownerLogin knows to set up.
     if (!session) {
       return { success: true };
     }
 
-    await setupOwnerTenant(userId, email, businessName, session.access_token);
+    // 2. Session available immediately — set up tenant now
+    try {
+      await setupOwnerTenant(userId, email, businessName, session.access_token);
+    } catch (err) {
+      console.error('Failed to set up tenant during signup:', err);
+      // Don't fail signup — user can still log in and tenant will be set up then
+    }
+
     addSystemLog('Account Created', `New business account: ${email}`, 'auth');
     return { success: true };
   };
 
-  // ── Helper: create tenant + system_user + role + settings ──
+  // ── Helper: Full tenant setup ──────────────────────────────
+  // Creates: tenant + system_user record + user_business_role + business_settings
+  // Called ONCE per owner, either at signup or first login.
   const setupOwnerTenant = async (
     userId:       string,
     email:        string,
     businessName: string,
     accessToken:  string
-  ) => {
+  ): Promise<string> => {
     const headers = {
       'apikey':        import.meta.env.VITE_SUPABASE_ANON_KEY,
       'Authorization': `Bearer ${accessToken}`,
@@ -126,48 +167,82 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     const baseUrl = import.meta.env.VITE_SUPABASE_URL;
 
+    // Create tenant
     const tenantRes = await fetch(`${baseUrl}/rest/v1/tenants`, {
       method: 'POST', headers,
-      body: JSON.stringify({ owner_id: userId, business_name: businessName, status: 'active' }),
-    });
-    if (!tenantRes.ok) throw new Error('Failed to create tenant');
-    const [tenant] = await tenantRes.json();
-
-    const userRes = await fetch(`${baseUrl}/rest/v1/system_users`, {
-      method: 'POST', headers,
       body: JSON.stringify({
-        id: userId, name: 'Admin', email,
-        role: 'Admin', status: 'Active',
-        username: email.split('@')[0], initials: 'AD',
+        owner_id:      userId,
+        business_name: businessName,
+        status:        'active',
       }),
     });
-    if (!userRes.ok) throw new Error('Failed to create system user');
+    if (!tenantRes.ok) {
+      const errText = await tenantRes.text();
+      throw new Error(`Failed to create tenant: ${errText}`);
+    }
+    const [tenant] = await tenantRes.json();
 
+    // Create system_user record for admin
+    // Use ON CONFLICT DO NOTHING in case it already exists
+    const userRes = await fetch(`${baseUrl}/rest/v1/system_users`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=representation,resolution=ignore-duplicates' },
+      body: JSON.stringify({
+        id:       userId,
+        name:     'Admin',
+        email:    email,
+        role:     'Admin',
+        status:   'Active',
+        username: email.split('@')[0],
+        initials: 'AD',
+      }),
+    });
+    if (!userRes.ok) {
+      const errText = await userRes.text();
+      throw new Error(`Failed to create system user: ${errText}`);
+    }
+
+    // Link admin to tenant
     const roleRes = await fetch(`${baseUrl}/rest/v1/user_business_roles`, {
       method: 'POST', headers,
-      body: JSON.stringify({ tenant_id: tenant.id, user_id: userId, role: 'Admin' }),
+      body: JSON.stringify({
+        tenant_id: tenant.id,
+        user_id:   userId,
+        role:      'Admin',
+      }),
     });
-    if (!roleRes.ok) throw new Error('Failed to assign admin role');
+    if (!roleRes.ok) {
+      const errText = await roleRes.text();
+      throw new Error(`Failed to assign admin role: ${errText}`);
+    }
 
+    // Create default business settings
     await fetch(`${baseUrl}/rest/v1/business_settings`, {
       method: 'POST', headers,
       body: JSON.stringify({
-        tenant_id: tenant.id, business_name: businessName,
-        owner: '', address: '', phone: '', email,
+        tenant_id:     tenant.id,
+        business_name: businessName,
+        owner:         '',
+        address:       '',
+        phone:         '',
+        email:         email,
       }),
     });
 
     return tenant.id;
   };
 
-  // ── Admin: Log in ──
+  // ── Admin: Log In ──────────────────────────────────────────
   const ownerLogin = async (email: string, password: string) => {
+    // 1. Authenticate with Supabase
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, error: error.message };
 
     const userId      = data.user.id;
     const accessToken = data.session.access_token;
 
+    // 2. Find this owner's tenant using the fresh access token
+    //    (bypasses the Supabase client session timing issue)
     const response = await fetch(
       `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tenants?select=id&owner_id=eq.${userId}&limit=1`,
       {
@@ -181,25 +256,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!response.ok) {
       console.error('Tenant fetch failed:', response.status, await response.text());
-      return { success: false, error: 'No tenant found for this admin account' };
+      return { success: false, error: 'Failed to load your business. Please try again.' };
     }
 
     const tenants = await response.json();
 
     let tenantId: string;
+
     if (!tenants || tenants.length === 0) {
+      // ── First login after email confirmation ──────────────
+      // Tenant wasn't created during signup (email confirmation was required).
+      // Set it up now — this only runs ONCE per owner account.
+      console.log('No tenant found — setting up business for first time login');
       try {
         tenantId = await setupOwnerTenant(userId, email, 'My Business', accessToken);
-      } catch {
-        return { success: false, error: 'Failed to set up your business account' };
+      } catch (err) {
+        console.error('Tenant setup failed:', err);
+        return { success: false, error: 'Failed to set up your business. Please contact support.' };
       }
     } else {
+      // ── Normal login — tenant already exists ──────────────
       tenantId = tenants[0].id;
     }
 
+    // 3. Set active user state
     const adminUser: ActiveUser = {
-      id: userId, name: 'Admin', username: email,
-      role: 'admin', initials: 'AD', tenantId, ownerId: userId,
+      id:       userId,
+      name:     'Admin',
+      username: email,
+      role:     'admin',
+      initials: 'AD',
+      tenantId,
+      ownerId:  userId,
     };
 
     setActiveUser(adminUser);
@@ -211,44 +299,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  // ── Admin: Log out ──
+  // ── Admin: Log Out ─────────────────────────────────────────
   const ownerLogout = async () => {
     addSystemLog('Admin Logout', 'Admin signed out', 'auth');
     await supabase.auth.signOut();
     setActiveUser(null);
     setCurrentTenantId(null);
-    localStorage.removeItem(STAFF_KEY);
-    localStorage.removeItem(TENANT_KEY);
+    clearLocalAuth();
   };
 
-  // ── Admin: Create additional tenant ──
+  // ── Admin: Create Additional Business (tenant) ─────────────
+  // Used when an owner wants to manage multiple business locations.
+  // Each call creates a completely isolated new tenant.
   const createTenant = async (businessName: string) => {
-    if (!ownerSession?.user.id) return { success: false, error: 'Not authenticated' };
+    if (!ownerSession?.user.id) {
+      return { success: false, error: 'Not authenticated' };
+    }
     try {
       const { data, error } = await supabase
         .from('tenants')
-        .insert({ business_name: businessName, owner_id: ownerSession.user.id, status: 'active' })
-        .select('id').single();
+        .insert({
+          business_name: businessName,
+          owner_id:      ownerSession.user.id,
+          status:        'active',
+        })
+        .select('id')
+        .single();
       if (error) throw error;
 
+      // Link owner as Admin of the new business
       await supabase.from('user_business_roles').insert({
-        tenant_id: data.id, user_id: ownerSession.user.id, role: 'Admin',
+        tenant_id: data.id,
+        user_id:   ownerSession.user.id,
+        role:      'Admin',
       });
 
-      // Also create default business_settings for new tenant
+      // Create default settings for new business
       await supabase.from('business_settings').insert({
-        tenant_id: data.id, business_name: businessName,
-        owner: '', address: '', phone: '', email: ownerSession.user.email ?? '',
+        tenant_id:     data.id,
+        business_name: businessName,
+        owner:         '',
+        address:       '',
+        phone:         '',
+        email:         ownerSession.user.email ?? '',
       });
 
       addSystemLog('Tenant Created', `Business: ${businessName}`, 'settings');
       return { success: true, tenantId: data.id };
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to create business' };
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to create business',
+      };
     }
   };
 
-  // ── Switch tenant ──
+  // ── Switch Active Business ─────────────────────────────────
   const switchTenant = (tenantId: string) => {
     setCurrentTenantId(tenantId);
     localStorage.setItem(TENANT_KEY, JSON.stringify({ tenantId }));
@@ -259,69 +365,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // ── Staff: Log in ──
+  // ── Staff: Log In ──────────────────────────────────────────
+  // Uses the staff_login SQL function which returns a JSON object with
+  // { id, name, username, role, initials, email, tenant_id }
   const staffLogin = async (username: string, password: string) => {
     const { data, error } = await supabase.rpc('staff_login', {
       p_username: username.trim().toLowerCase(),
       p_password: password,
     });
 
-    console.log('staff_login RPC result:', { data, error });
+    console.log('staff_login result:', { data, error });
 
+    // RPC-level failure (network, function missing, etc)
     if (error) {
-      console.error('staff_login error:', error);
-      addSystemLog('Failed Login', `Invalid credentials for: ${username}`, 'auth');
+      console.error('staff_login RPC error:', error);
+      addSystemLog('Failed Login', `RPC error for: ${username}`, 'auth');
       return { success: false, error: 'Invalid username or password.' };
     }
 
-    // RPC returns array of rows
-    const rows = Array.isArray(data) ? data : [];
-    if (rows.length === 0) {
-      addSystemLog('Failed Login', `Invalid credentials for: ${username}`, 'auth');
-      return { success: false, error: 'Invalid username or password.' };
+    // Business-logic error returned inside JSON
+    if (!data || data.error) {
+      const msg = data?.error ?? 'Invalid username or password.';
+      addSystemLog('Failed Login', `${msg}: ${username}`, 'auth');
+      return { success: false, error: msg };
     }
 
-    const found = rows[0];
-    console.log('Found staff user:', found);
+    // Handle both array and single-object responses
+    const found = Array.isArray(data) ? data[0] : data;
+    console.log('Parsed staff user:', found);
 
     if (!found?.id) {
+      console.error('No id in staff_login response:', found);
       return { success: false, error: 'Login failed — user data incomplete.' };
     }
 
-    // Get tenant for this staff member
-    const { data: roleData, error: roleError } = await supabase
-      .from('user_business_roles')
-      .select('tenant_id')
-      .eq('user_id', found.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .single();
-
-    console.log('Role data:', { roleData, roleError });
-
-    if (!roleData?.tenant_id) {
-      return { success: false, error: 'User has no assigned tenant' };
+    if (!found?.tenant_id) {
+      return {
+        success: false,
+        error: 'Your account is not linked to a business. Contact your admin.',
+      };
     }
 
     const staffUser: ActiveUser = {
-      id:       found.id,
+      id:       String(found.id),
       name:     found.name,
       username: found.username ?? username,
       role:     (found.role?.toLowerCase() ?? 'staff') as UserRole,
       initials: found.initials ?? '',
-      tenantId: roleData.tenant_id,
+      tenantId: String(found.tenant_id),
     };
 
     setActiveUser(staffUser);
-    setCurrentTenantId(roleData.tenant_id);
+    setCurrentTenantId(String(found.tenant_id));
     localStorage.setItem(STAFF_KEY,  JSON.stringify(staffUser));
-    localStorage.setItem(TENANT_KEY, JSON.stringify({ tenantId: roleData.tenant_id }));
+    localStorage.setItem(TENANT_KEY, JSON.stringify({ tenantId: String(found.tenant_id) }));
 
     addSystemLog('Staff Login', `${found.name} (${found.role}) signed in`, 'auth');
     return { success: true };
   };
 
-  // ── Staff: Log out ──
+  // ── Staff: Log Out ─────────────────────────────────────────
   const staffLogout = () => {
     if (!ownerSession) return;
     addSystemLog('Staff Logout', `${activeUser?.name ?? 'Staff'} signed out`, 'auth');
@@ -343,9 +446,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        ownerSession, ownerLoading, activeUser, currentTenantId,
-        ownerLogin, ownerSignUp, ownerLogout, createTenant,
-        staffLogin, staffLogout, switchTenant,
+        ownerSession,
+        ownerLoading,
+        activeUser,
+        currentTenantId,
+        ownerLogin,
+        ownerSignUp,
+        ownerLogout,
+        createTenant,
+        staffLogin,
+        staffLogout,
+        switchTenant,
         isAuthenticated: !!activeUser,
         user:            activeUser,
         logout:          ownerLogout,

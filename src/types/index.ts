@@ -16,7 +16,7 @@ export interface Transaction {
 // ── MULTI-TENANT: SalesRecord ─────────────────────────────
 export interface SalesRecord {
   id:          string;
-  tenantId:    string;
+  tenantId?:   string;      // Optional: seed/local data won't have this
   date:        string;
   displayDate: string;
   amount:      number;
@@ -27,15 +27,15 @@ export interface SalesRecord {
 
 // ── MULTI-TENANT: ExpenseRecord ───────────────────────────
 export interface ExpenseRecord {
-  id:          string;
-  tenantId:    string;
-  date:        string;
-  displayDate: string;
-  category:    string;
-  description: string;
-  amount:      number;
-  addedBy?:    string;
-  status:      'Completed' | 'Pending';
+  id:           string;
+  tenantId?:    string;      // Optional: seed/local data won't have this
+  date:         string;
+  displayDate:  string;
+  category:     string;
+  description?: string;
+  amount:       number;
+  addedBy?:     string;
+  status?:      'Completed' | 'Pending';  // Optional: not always present locally
 }
 
 export type ExpenseCategory = string;
@@ -43,7 +43,7 @@ export type ExpenseCategory = string;
 // ── MULTI-TENANT: DistributionCategory ────────────────────
 export interface DistributionCategory {
   id:          string;
-  tenantId?:   string;
+  tenantId?:   string;      // Optional: seed/local data won't have this
   name:        string;
   percentage:  number;
   amount?:     number;
@@ -60,7 +60,7 @@ export interface DistributionResult extends DistributionCategory {
 // ── MULTI-TENANT: Customer ────────────────────────────────
 export interface Customer {
   id:             string;
-  tenantId:       string;
+  tenantId?:      string;   // Optional: seed/local data won't have this
   name:           string;
   email?:         string;
   phone?:         string;
@@ -121,7 +121,7 @@ export interface Permission {
 
 // ── Business Settings ─────────────────────────────────────
 export interface BusinessSettings {
-  tenantId:       string;
+  tenantId?:      string;   // Optional: seed/local data won't have this
   businessName:   string;
   owner?:         string;
   address?:       string;
@@ -178,7 +178,7 @@ export interface SaleItem {
 // ── Inventory ──────────────────────────────────────────────
 export interface InventoryItem {
   id:         string;
-  tenantId:   string;
+  tenantId?:  string;   // Optional: seed/local data won't have this
   name:       string;
   category:   string;
   stock:      number;
@@ -191,7 +191,7 @@ export interface InventoryItem {
 // ── Services ───────────────────────────────────────────────
 export interface Service {
   id:           string;
-  tenantId:     string;
+  tenantId?:    string;   // Optional: seed/local data won't have this
   name:         string;
   unit:         string;
   unitPrice:    number;
@@ -225,18 +225,16 @@ export const DEFAULT_WORKING_DAYS: WorkingDaysConfig = {
 
 // ── Financial Projections ─────────────────────────────────
 export interface FinancialProjection {
-  // Target metrics
   breakEvenSales:            number;
   dailySalesTarget:          number;
   projectedMonthly:          number;
-  totalMonthlyOperatingCost: number;  // ← renamed
+  totalMonthlyOperatingCost: number;
   profitMarginTarget:        number;
   workingDaysPerMonth:       number;
-  // Actual metrics (based on real sales)
-  totalActualSales:          number;  // ← new
-  totalDistributedAmount:    number;  // ← new
-  actualProfitAmount:        number;  // ← new
-  actualProfitMargin:        number;  // ← new
+  totalActualSales:          number;
+  totalDistributedAmount:    number;
+  actualProfitAmount:        number;
+  actualProfitMargin:        number;
 }
 
 // ── System Logs ────────────────────────────────────────────
@@ -253,7 +251,7 @@ export interface SystemLog {
 // ── Payment Methods ───────────────────────────────────────
 export interface PaymentMethod {
   id:              string;
-  tenantId:        string;
+  tenantId?:       string;   // Optional: seed/local data won't have this
   type:            'cash' | 'card' | 'gcash' | 'paypal' | 'bank_transfer';
   name:            string;
   isActive:        boolean;
@@ -264,7 +262,7 @@ export interface PaymentMethod {
 // ── Backup Records ────────────────────────────────────────
 export interface BackupRecord {
   id:         string;
-  tenantId:   string;
+  tenantId?:  string;   // Optional: seed/local data won't have this
   fileName:   string;
   backupSize: number;
   status:     'completed' | 'in-progress' | 'failed';

@@ -25,10 +25,10 @@ import {
   useSupaDistribution,
 } from './hooks/useSupabase';
 import { useWorkingDays } from './hooks/useWorkingDays';
-import { useActivePage } from './hooks';
-import { todayIso } from './utils/helpers';
+import { useActivePage }  from './hooks';
+import { todayIso }       from './utils/helpers';
 
-// ── Apply saved theme immediately on app load ────────────────
+// Apply saved theme immediately on app load
 initGeneralSettings();
 
 const PAGE_TITLES: Record<string, string> = {
@@ -48,7 +48,8 @@ const Loader: React.FC = () => (
     alignItems: 'center', justifyContent: 'center',
     background: '#f8fafc', gap: 12, color: '#6b7280',
   }}>
-    <i className="ti ti-loader-2"
+    <i
+      className="ti ti-loader-2"
       style={{ fontSize: 36, animation: 'spin 1s linear infinite' }}
       aria-hidden="true"
     />
@@ -70,9 +71,10 @@ const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
   </div>
 );
 
+// ─── Main App Shell ───────────────────────────────────────────
 const AppShell: React.FC = () => {
   const { activePage, setActivePage } = useActivePage('dashboard');
-  const { can } = useRole();
+  const { can }            = useRole();
   const { currentTenantId } = useAuth();
 
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
@@ -81,43 +83,86 @@ const AppShell: React.FC = () => {
     month: 'long', day: 'numeric', year: 'numeric',
   });
 
+  // ── Data hooks — all keyed to currentTenantId ──────────────
   const {
-    records: sales, loading: salesLoading, error: salesError,
-    addOrUpdateSale, removeSale, removeAllSales,
+    records: sales,
+    loading: salesLoading,
+    error:   salesError,
+    addOrUpdateSale,
+    removeSale,
+    removeAllSales,
   } = useSupaSales(currentTenantId);
 
   const {
-    records: expenses, loading: expensesLoading, error: expensesError,
-    addExpense, removeExpense,
+    records:  expenses,
+    loading:  expensesLoading,
+    error:    expensesError,
+    addExpense,
+    removeExpense,
   } = useSupaExpenses(currentTenantId);
 
-  const { customers, loading: custLoading,     addCustomer }          = useSupaCustomers(currentTenantId);
-  const { users,     loading: usersLoading,    addUser, toggleStatus } = useSupaUsers(currentTenantId);
-  const { settings,  loading: settingsLoading, updateSettings }        = useSupaSettings(currentTenantId);
+  const {
+    customers,
+    loading: custLoading,
+    addCustomer,
+  } = useSupaCustomers(currentTenantId);
 
   const {
-    categories: distributionCats, loading: distLoading,
-    saving: distSaving, updateCategories,
+    users,
+    loading: usersLoading,
+    addUser,
+    toggleStatus,
+  } = useSupaUsers(currentTenantId);
+
+  const {
+    settings,
+    loading: settingsLoading,
+    updateSettings,
+  } = useSupaSettings(currentTenantId);
+
+  const {
+    categories: distributionCats,
+    loading:    distLoading,
+    saving:     distSaving,
+    updateCategories,
   } = useSupaDistribution(currentTenantId);
 
   const {
-    config: workingDays, loading: workingDaysLoading,
-    saving: workingDaysSaving, updateWorkingDays,
+    config:  workingDays,
+    loading: workingDaysLoading,
+    saving:  workingDaysSaving,
+    updateWorkingDays,
   } = useWorkingDays(currentTenantId);
 
   const isLoading =
-    salesLoading    || expensesLoading  ||
-    custLoading     || usersLoading     ||
-    settingsLoading || distLoading      ||
+    salesLoading       || expensesLoading  ||
+    custLoading        || usersLoading     ||
+    settingsLoading    || distLoading      ||
     workingDaysLoading;
 
   const dbError = salesError || expensesError;
 
+  // ── FIXED: onSaveSale handler ──────────────────────────────
+  // Before: can('canAddSales') ? addOrUpdateSale : async () => {}
+  //         → silent no-op for Staff, "Saved!" shown on failure
+  // After:  throws a visible error when user lacks permission,
+  //         so DashboardPage catch block shows the real message
+  const handleSaveSale = async (
+    date: string, amount: number, notes: string
+  ): Promise<void> => {
+    if (!can('canAddSales')) {
+      throw new Error("You don't have permission to add sales.");
+    }
+    await addOrUpdateSale(date, amount, notes);
+  };
+
+  // ── Page renderer ──────────────────────────────────────────
   const renderPage = () => {
     if (isLoading) return <Loader />;
     if (dbError)   return <ErrorBanner message={dbError} />;
 
     switch (activePage) {
+
       case 'dashboard':
         return (
           <DashboardPage
@@ -125,9 +170,10 @@ const AppShell: React.FC = () => {
             expenses={expenses}
             categories={distributionCats}
             selectedDate={selectedDate}
-            onSaveSale={can('canAddSales') ? addOrUpdateSale : async () => {}}
+            onSaveSale={handleSaveSale}   // ← FIXED: always throws on error
           />
         );
+
       case 'sales':
         return can('canViewSales') ? (
           <SalesPage
@@ -138,6 +184,7 @@ const AppShell: React.FC = () => {
             canAdd={can('canAddSales')}
           />
         ) : <AccessDenied pageName="Sales" />;
+
       case 'expenses':
         return can('canViewExpenses') ? (
           <ExpensesPage
@@ -148,6 +195,7 @@ const AppShell: React.FC = () => {
             canDelete={can('canDeleteExpenses')}
           />
         ) : <AccessDenied pageName="Expenses" />;
+
       case 'distribution':
         return can('canViewDistribution') ? (
           <DistributionPage
@@ -160,6 +208,7 @@ const AppShell: React.FC = () => {
             saving={distSaving || workingDaysSaving}
           />
         ) : <AccessDenied pageName="Distribution" />;
+
       case 'reports':
         return can('canViewReports') ? (
           <ReportsPage
@@ -168,6 +217,7 @@ const AppShell: React.FC = () => {
             categories={distributionCats}
           />
         ) : <AccessDenied pageName="Reports" />;
+
       case 'customers':
         return can('canViewCustomers') ? (
           <CustomersPage
@@ -176,6 +226,7 @@ const AppShell: React.FC = () => {
             canAdd={can('canAddCustomers')}
           />
         ) : <AccessDenied pageName="Customers" />;
+
       case 'users':
         return can('canViewUsers') ? (
           <UsersPage
@@ -185,6 +236,7 @@ const AppShell: React.FC = () => {
             canManage={can('canManageUsers')}
           />
         ) : <AccessDenied pageName="Users" />;
+
       case 'settings':
         return can('canViewSettings') ? (
           <SettingsPage
@@ -193,6 +245,7 @@ const AppShell: React.FC = () => {
             canEdit={can('canEditSettings')}
           />
         ) : <AccessDenied pageName="Settings" />;
+
       default:
         return null;
     }
@@ -216,6 +269,7 @@ const AppShell: React.FC = () => {
   );
 };
 
+// ─── Auth wrapper ─────────────────────────────────────────────
 const AppWithAuth: React.FC = () => {
   const { ownerLoading } = useAuth();
   if (ownerLoading) return <LoadingScreen message="Starting up..." />;

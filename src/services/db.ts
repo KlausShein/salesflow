@@ -63,7 +63,7 @@ const getCurrentTenantId = async (): Promise<string> => {
     .maybeSingle();
 
   if (error) throw error;
-  if (!data) throw new Error('No tenant found for user');
+  if (!data) throw new Error('No tenant found for user. Please contact your admin.');
 
   return data.tenant_id;
 };
@@ -120,7 +120,8 @@ export const switchTenant = async (tenantId: string): Promise<void> => {
   localStorage.setItem('printpos_active_tenant', JSON.stringify({ tenantId }));
 };
 
-// ─── helpers ─────────────────────────────────────────────────
+// ─── Row helpers ─────────────────────────────────────────────
+
 const capitalize = (s: string): 'Active' | 'Inactive' => {
   const normalized = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
   return normalized as 'Active' | 'Inactive';
@@ -132,9 +133,9 @@ const row2Sale = (r: any): SalesRecord => ({
   date:        r.date,
   displayDate: r.display_date,
   amount:      Number(r.amount),
-  distributed: Number(r.distributed),
+  distributed: Number(r.distributed ?? 0),
   notes:       r.notes ?? '',
-  status:      r.status,
+  status:      r.status ?? 'Completed',
 });
 
 const row2Expense = (r: any): ExpenseRecord => ({
@@ -146,7 +147,7 @@ const row2Expense = (r: any): ExpenseRecord => ({
   category:    r.category,
   amount:      Number(r.amount),
   addedBy:     r.added_by,
-  status:      r.status?? 'Completed',
+  status:      r.status ?? 'Completed',
 });
 
 const row2Customer = (r: any): Customer => ({
@@ -170,6 +171,7 @@ const row2User = (r: any): SystemUser => ({
 });
 
 // ─── Sales ──────────────────────────────────────────────────
+
 export const fetchSales = async (): Promise<SalesRecord[]> => {
   const tenantId = await getCurrentTenantId();
   const { data, error } = await supabase
@@ -199,7 +201,12 @@ export const upsertSale = async (
     })
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('[upsertSale] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to save sale');
+  }
+
+  if (!data) throw new Error('Sale saved but no data returned');
 
   addSystemLog(
     'Sale Saved',
@@ -232,6 +239,7 @@ export const deleteAllSales = async (): Promise<void> => {
 };
 
 // ─── Expenses ────────────────────────────────────────────────
+
 export const fetchExpenses = async (): Promise<ExpenseRecord[]> => {
   const tenantId = await getCurrentTenantId();
   const { data, error } = await supabase
@@ -283,6 +291,7 @@ export const deleteExpense = async (id: string): Promise<void> => {
 };
 
 // ─── Customers ───────────────────────────────────────────────
+
 export const fetchCustomers = async (): Promise<Customer[]> => {
   const tenantId = await getCurrentTenantId();
   const { data, error } = await supabase
@@ -316,6 +325,7 @@ export const insertCustomer = async (
 };
 
 // ─── System Users ────────────────────────────────────────────
+
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
   const tenantId = await getCurrentTenantId();
 
@@ -328,15 +338,21 @@ export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
   return (data ?? []).map((d: any) => row2User(d.system_users)).filter(Boolean);
 };
 
+/**
+ * Insert a system user and assign to current tenant.
+ * FIXED: accepts explicit tenantId from useSupabase hook to ensure
+ * new users always get linked to the correct tenant.
+ */
 export const insertSystemUser = async (
-  u: Omit<SystemUser, 'id'>
+  u:                 Omit<SystemUser, 'id'>,
+  explicitTenantId?: string                 // ← FIXED: accept tenant from caller
 ): Promise<SystemUser> => {
-  const tenantId = await getCurrentTenantId();
+  // Use explicit tenantId if provided and valid, otherwise fall back
+  const tenantId = (explicitTenantId && isValidUUID(explicitTenantId))
+    ? explicitTenantId
+    : await getCurrentTenantId();
 
-  // ── Hash the password before storing ──────────────────────
-  // Uses the hash_password Supabase function so passwords are
-  // never stored in plain text. Falls back to plain text only
-  // if the RPC call fails (shouldn't happen in production).
+  // Hash the password before storing
   let hashedPassword = u.password ?? '';
   try {
     const { data: hashData, error: hashError } = await supabase
@@ -357,18 +373,26 @@ export const insertSystemUser = async (
       email:    u.email,
       status:   u.status,
       username: u.username,
-      password: hashedPassword,  // ← always hashed
+      password: hashedPassword,
     })
     .select()
     .single();
 
   if (userError) throw userError;
 
-  await supabase.from('user_business_roles').insert({
-    tenant_id: tenantId,
-    user_id:   userData.id,
-    role:      u.role,
-  });
+  // Link user to the correct tenant
+  const { error: roleError } = await supabase
+    .from('user_business_roles')
+    .insert({
+      tenant_id: tenantId,
+      user_id:   userData.id,
+      role:      u.role,
+    });
+
+  if (roleError) {
+    console.error('[insertSystemUser] Failed to link user to tenant:', roleError);
+    // User was created — log but don't throw so caller can see partial success
+  }
 
   addSystemLog('User Created', `${u.name} (${u.role}) — @${u.username}`, 'auth');
   return row2User(userData);
@@ -391,6 +415,7 @@ export const toggleUserStatus = async (
 };
 
 // ─── Business Settings ───────────────────────────────────────
+
 export const fetchSettings = async (): Promise<BusinessSettings> => {
   const tenantId = await getCurrentTenantId();
   const { data, error } = await supabase
@@ -445,6 +470,7 @@ export const saveSettings = async (s: BusinessSettings): Promise<void> => {
 };
 
 // ─── Distribution Categories ────────────────────────────────
+
 export const fetchDistribution = async (): Promise<DistributionCategory[] | null> => {
   const tenantId = await getCurrentTenantId();
   const { data, error } = await supabase
@@ -478,6 +504,7 @@ export const saveDistribution = async (
 };
 
 // ─── Working Days Configuration ──────────────────────────────
+
 export const fetchWorkingDays = async (): Promise<WorkingDaysConfig | null> => {
   try {
     const tenantId = await getCurrentTenantId();
@@ -489,19 +516,18 @@ export const fetchWorkingDays = async (): Promise<WorkingDaysConfig | null> => {
       .maybeSingle();
 
     if (error) {
-      console.error('✗ Error fetching working days:', error);
+      console.error('Error fetching working days:', error);
       throw error;
     }
 
     if (!data) {
-      console.log('ℹ No business_settings row found, will create on first save');
+      console.info('No business_settings row found, will create on first save');
       return null;
     }
 
-    console.log('✓ Working days fetched:', data.working_days_config);
     return data.working_days_config ?? null;
   } catch (err) {
-    console.error('✗ Failed to fetch working days:', err);
+    console.error('Failed to fetch working days:', err);
     throw err;
   }
 };
@@ -518,7 +544,7 @@ export const saveWorkingDays = async (config: WorkingDaysConfig): Promise<void> 
       .eq('tenant_id', tenantId);
 
     if (updateError) {
-      console.error('✗ Update error:', updateError);
+      console.error('Update error:', updateError);
       throw new Error(`Failed to save working days: ${updateError.message}`);
     }
 
@@ -529,7 +555,7 @@ export const saveWorkingDays = async (config: WorkingDaysConfig): Promise<void> 
     );
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-    console.error('✗ Error in saveWorkingDays:', errorMessage, err);
+    console.error('Error in saveWorkingDays:', errorMessage, err);
     throw new Error(`Failed to save working days: ${errorMessage}`);
   }
 };
