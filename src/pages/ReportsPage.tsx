@@ -49,7 +49,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ sales, expenses, categories }
           { label: 'Net Income',     value: formatPeso(netIncome),     accent: '#10b981' },
           { label: 'Sales Records',  value: String(sales.length),      accent: '#f59e0b', mono: false },
         ].map((c) => (
-          <div key={c.label} className="stat-card" style={{ borderTop: `3px solid ${c.accent}`, paddingTop: 16 }}>
+          <div key={c.label} className="stat-card" style={{ paddingTop: 16 }}>
             <div className="stat-label">{c.label}</div>
             <div className="stat-value" style={{ fontFamily: c.mono === false ? 'inherit' : 'var(--mono)' }}>{c.value}</div>
           </div>

@@ -95,7 +95,7 @@ const SalesPage: React.FC<SalesPageProps> = ({
           { label: 'Average Daily', value: formatPeso(avgDaily),     accent: '#10b981' },
           { label: 'Total Entries', value: String(records.length),   accent: '#f59e0b', mono: false },
         ].map((c) => (
-          <div key={c.label} className="stat-card" style={{ borderTop: `3px solid ${c.accent}`, paddingTop: 16 }}>
+          <div key={c.label} className="stat-card" style={{ paddingTop: 16 }}>
             <div className="stat-label">{c.label}</div>
             <div className="stat-value" style={{ fontFamily: c.mono === false ? 'inherit' : 'var(--mono)' }}>
               {c.value}

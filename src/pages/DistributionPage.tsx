@@ -222,7 +222,7 @@ const DistributionPage: React.FC<DistributionPageProps> = ({
             },
           ].map(c => (
             <div key={c.label} className="stat-card"
-              style={{ borderTop: `3px solid ${c.accent}`, paddingTop: 14 }}
+              style={{ paddingTop: 14 }}
               title={c.tip}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -279,7 +279,7 @@ const DistributionPage: React.FC<DistributionPageProps> = ({
             },
           ].map(c => (
             <div key={c.label} className="stat-card"
-              style={{ borderTop: `3px solid ${c.accent}`, paddingTop: 14 }}
+              style={{ paddingTop: 14 }}
               title={c.tip}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

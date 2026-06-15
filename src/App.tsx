@@ -283,8 +283,7 @@ const AppWithAuth: React.FC = () => {
 
 const App: React.FC = () => (
   <AuthProvider>
-    <AppWithAuth />
-    <UpdateBanner /> 
+    <AppWithAuth /> 
   </AuthProvider>
 );
 

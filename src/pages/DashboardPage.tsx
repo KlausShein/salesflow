@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { SalesRecord, ExpenseRecord, DistributionCategory } from '../types';
 import { formatPeso, computeDistribution, computeDashboardStats, todayIso } from '../utils/helpers';
 import AnalyticsPanel from '../components/dashboard/AnalyticsPanel';
+import FloatingRobot from '../components/shared/FloatingRobot';
 
 // ─── Modal Styles (injected once) ────────────────────────────
 const MODAL_STYLES = `
@@ -94,8 +95,6 @@ const ModalShell: React.FC<ModalShellProps> = ({
             overflow:       'hidden',
           }}
         >
-          {/* Accent top bar */}
-          <div style={{ height: 3, background: `linear-gradient(90deg, ${accent}, ${accent}60, transparent)`, flexShrink: 0 }} />
 
           {/* Header */}
           <div style={{
@@ -614,6 +613,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* ── Modals ── */}
       <SalesModal    isOpen={salesOpen}    onClose={() => setSalesOpen(false)}    sales={sales}       />
       <ExpensesModal isOpen={expensesOpen} onClose={() => setExpensesOpen(false)} expenses={expenses} />
+
+      <FloatingRobot />
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
