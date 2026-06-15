@@ -9,6 +9,7 @@ interface Message {
 }
 
 const SESSION_ID = `session_${Date.now()}`;
+const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001';
 
 const FloatingRobot: React.FC = () => {
   const [open, setOpen]         = useState(false);
@@ -36,7 +37,7 @@ const FloatingRobot: React.FC = () => {
       // Fetch live Supabase data and attach as context
       const context = await fetchContext();
 
-      const res = await fetch('http://localhost:3001/api/assistant', {
+      const res = await fetch(`${API_URL}/api/assistant`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
