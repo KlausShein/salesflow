@@ -1,7 +1,7 @@
 {
   "name": "printpos-pro",
-  "version": "3.0.3",
-  "description": "PrintPOS Pro — Print Shop Sales Tracker & Financial Distribution System",
+  "version": "3.0.4",
+  "description": "SalesFlow, Sales Tracking & Business Management System",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
