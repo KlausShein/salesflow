@@ -58,6 +58,16 @@ const TIMEZONES = [
   'America/New_York','America/Los_Angeles','UTC',
 ];
 
+// ── Helper: get current tenant ID from localStorage ──────────
+const getActiveTenantId = (): string | null => {
+  try {
+    const stored = localStorage.getItem('printpos_active_tenant');
+    return stored ? JSON.parse(stored)?.tenantId ?? null : null;
+  } catch {
+    return null;
+  }
+};
+
 const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }) => {
   const [active,       setActive]       = useState('business');
   const [form,         setForm]         = useState<BusinessSettings>(settings);
@@ -67,6 +77,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
   const [general,      setGeneral]      = useState<GeneralSettings>(DEFAULT_GENERAL);
   const [generalSaved, setGeneralSaved] = useState(false);
   const [logs,         setLogs]         = useState<LogEntry[]>([]);
+  const [logsLoading,  setLogsLoading]  = useState(false);
   const [logFilter,    setLogFilter]    = useState('all');
   const [logSearch,    setLogSearch]    = useState('');
   const [now,          setNow]          = useState(new Date());
@@ -85,8 +96,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
     } catch { /* ignore */ }
   }, []);
 
+  // ── Load logs from Supabase when logs tab is opened ──────────
   useEffect(() => {
-    if (active === 'logs') setLogs(getSystemLogs());
+    if (active !== 'logs') return;
+
+    const tenantId = getActiveTenantId();
+    if (!tenantId) return;
+
+    setLogsLoading(true);
+    getSystemLogs(tenantId)
+      .then(setLogs)
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false));
   }, [active]);
 
   const handleSave = () => {
@@ -118,9 +139,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
     setTimeout(() => setGeneralSaved(false), 2000);
   };
 
-  const handleClearLogs = () => {
+  // ── Clear logs from Supabase ─────────────────────────────────
+  const handleClearLogs = async () => {
     if (!window.confirm('Clear all system logs? This cannot be undone.')) return;
-    clearSystemLogs();
+    const tenantId = getActiveTenantId();
+    if (!tenantId) return;
+    await clearSystemLogs(tenantId);
     setLogs([]);
   };
 
@@ -254,7 +278,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
               <SectionTitle title="General Settings" sub="Customize your system appearance and preferences" />
               <div style={{ display: 'grid', gap: 24, maxWidth: 520 }}>
 
-                {/* Theme — applies live on click */}
+                {/* Theme */}
                 <div>
                   <label className="form-label">Theme</label>
                   <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
@@ -267,7 +291,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                         onClick={() => {
                           if (!canEdit) return;
                           setGeneral(g => ({ ...g, theme: val }));
-                          applyTheme(val); // instant preview
+                          applyTheme(val);
                         }}
                         style={{
                           flex: 1, padding: '12px 8px', borderRadius: 9,
@@ -459,7 +483,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
                   <option value="delete">Delete</option>
                 </select>
               </div>
-              {filteredLogs.length === 0 ? (
+
+              {/* Loading state */}
+              {logsLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
+                  <i className="ti ti-loader-2" style={{ fontSize: 32, display: 'block', marginBottom: 10, opacity: .4, animation: 'spin 1s linear infinite' }} aria-hidden="true" />
+                  <div style={{ fontSize: 13 }}>Loading logs...</div>
+                </div>
+              ) : filteredLogs.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)' }}>
                   <i className="ti ti-list-details" style={{ fontSize: 40, opacity: .3, display: 'block', marginBottom: 10 }} aria-hidden="true" />
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--sub)', marginBottom: 4 }}>
@@ -503,6 +534,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, canEdit }
           )}
         </div>
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

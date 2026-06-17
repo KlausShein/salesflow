@@ -3,6 +3,7 @@ import { SalesRecord, ExpenseRecord, DistributionCategory } from '../types';
 import { formatPeso, computeDistribution, computeDashboardStats, todayIso } from '../utils/helpers';
 import AnalyticsPanel from '../components/dashboard/AnalyticsPanel';
 import FloatingRobot from '../components/shared/FloatingRobot';
+import DatePicker from '../components/shared/DatePicker';
 
 // ─── Modal Styles (injected once) ────────────────────────────
 const MODAL_STYLES = `
@@ -59,7 +60,6 @@ const ModalShell: React.FC<ModalShellProps> = ({
   return (
     <>
       <style>{MODAL_STYLES}</style>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -68,7 +68,6 @@ const ModalShell: React.FC<ModalShellProps> = ({
         }}
         aria-hidden="true"
       />
-      {/* Centered container */}
       <div
         style={{
           position: 'fixed', inset: 0, zIndex: 1001,
@@ -95,8 +94,6 @@ const ModalShell: React.FC<ModalShellProps> = ({
             overflow:       'hidden',
           }}
         >
-
-          {/* Header */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 14,
             padding: '22px 26px 18px',
@@ -131,8 +128,6 @@ const ModalShell: React.FC<ModalShellProps> = ({
               <i className="ti ti-x" />
             </button>
           </div>
-
-          {/* Scrollable body */}
           <div className="vam-scroll" style={{ flex: 1, overflowY: 'auto', padding: '4px 26px 28px' }}>
             {children}
           </div>
@@ -198,14 +193,12 @@ const RowNum: React.FC<{ n: number; color: string; bg: string }> = ({ n, color, 
 // ─── Sales Modal ──────────────────────────────────────────────
 const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesRecord[] }> = ({ isOpen, onClose, sales }) => {
   const [q, setQ] = useState('');
-
   const filtered = sales.filter(s =>
     !q ||
     s.displayDate.toLowerCase().includes(q.toLowerCase()) ||
     (s.notes ?? '').toLowerCase().includes(q.toLowerCase()) ||
     String(s.amount).includes(q)
   );
-
   const totalSales = filtered.reduce((n, s) => n + s.amount, 0);
   const totalDist  = filtered.reduce((n, s) => n + s.distributed, 0);
 
@@ -217,7 +210,6 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
       icon="ti-trending-up" accent="#818cf8" accentDim="rgba(99,102,241,0.14)"
     >
       <VamSearch value={q} onChange={setQ} placeholder="Search by date, notes, or amount…" />
-
       {filtered.length > 0 && (
         <VamSummary items={[
           { label: 'Total Sales',       value: formatPeso(totalSales),  color: '#818cf8', bg: 'rgba(99,102,241,0.12)'  },
@@ -225,24 +217,12 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
           { label: 'Records',           value: String(filtered.length), color: '#94a3b8', bg: 'rgba(255,255,255,0.04)' },
         ]} />
       )}
-
       {filtered.length === 0 ? (
         <VamEmpty msg={q ? 'No records match your search' : 'No sales records yet'} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map((s, i) => (
-            <div
-              key={s.id}
-              className="vam-row"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 11,
-                padding: '12px 13px',
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: 11, cursor: 'default',
-                animationDelay: `${Math.min(i * 0.025, 0.3)}s`,
-              }}
-            >
+            <div key={s.id} className="vam-row" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 13px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 11, cursor: 'default', animationDelay: `${Math.min(i * 0.025, 0.3)}s` }}>
               <RowNum n={i + 1} color="#818cf8" bg="rgba(99,102,241,0.14)" />
               <div style={{ flexShrink: 0, width: 105 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{s.displayDate}</div>
@@ -251,19 +231,9 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
               <div style={{ flex: 1, fontSize: 13, color: s.notes ? '#64748b' : '#1e293b', fontStyle: s.notes ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {s.notes || 'No notes'}
               </div>
-              <div style={{ fontSize: 11, color: '#34d399', flexShrink: 0 }}>
-                dist. {formatPeso(s.distributed)}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#818cf8', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>
-                {formatPeso(s.amount)}
-              </div>
-              <div style={{
-                padding: '3px 10px', borderRadius: 20, fontSize: 11,
-                fontWeight: 600, letterSpacing: '0.2px', flexShrink: 0,
-                background: s.status === 'Completed' ? 'rgba(5,150,105,0.15)' : 'rgba(245,158,11,0.15)',
-                color:      s.status === 'Completed' ? '#34d399'              : '#fbbf24',
-                border:     `1px solid ${s.status === 'Completed' ? 'rgba(52,211,153,0.2)' : 'rgba(251,191,36,0.2)'}`,
-              }}>
+              <div style={{ fontSize: 11, color: '#34d399', flexShrink: 0 }}>dist. {formatPeso(s.distributed)}</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#818cf8', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>{formatPeso(s.amount)}</div>
+              <div style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, letterSpacing: '0.2px', flexShrink: 0, background: s.status === 'Completed' ? 'rgba(5,150,105,0.15)' : 'rgba(245,158,11,0.15)', color: s.status === 'Completed' ? '#34d399' : '#fbbf24', border: `1px solid ${s.status === 'Completed' ? 'rgba(52,211,153,0.2)' : 'rgba(251,191,36,0.2)'}` }}>
                 {s.status}
               </div>
             </div>
@@ -278,7 +248,6 @@ const SalesModal: React.FC<{ isOpen: boolean; onClose: () => void; sales: SalesR
 const ExpensesModal: React.FC<{ isOpen: boolean; onClose: () => void; expenses: ExpenseRecord[] }> = ({ isOpen, onClose, expenses }) => {
   const [q,   setQ]   = useState('');
   const [cat, setCat] = useState('All');
-
   const allCats  = ['All', ...Array.from(new Set(expenses.map(e => e.category).filter(Boolean)))];
   const filtered = expenses.filter(e => {
     const mQ = !q || (e.description ?? '').toLowerCase().includes(q.toLowerCase()) || e.displayDate.toLowerCase().includes(q.toLowerCase()) || (e.category ?? '').toLowerCase().includes(q.toLowerCase()) || String(e.amount).includes(q);
@@ -295,77 +264,39 @@ const ExpensesModal: React.FC<{ isOpen: boolean; onClose: () => void; expenses: 
       icon="ti-receipt-2" accent="#f87171" accentDim="rgba(220,38,38,0.14)"
     >
       <VamSearch value={q} onChange={setQ} placeholder="Search by description, category, or amount…" />
-
       {allCats.length > 2 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
           {allCats.map(c => (
-            <button
-              key={c}
-              className="vam-chip"
-              onClick={() => setCat(c)}
-              style={{
-                padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                border:      `1px solid ${cat === c ? 'rgba(248,113,113,0.4)'  : 'rgba(255,255,255,0.07)'}`,
-                background:  cat === c ? 'rgba(220,38,38,0.15)'                : 'rgba(255,255,255,0.03)',
-                color:       cat === c ? '#f87171'                             : '#475569',
-                fontWeight:  cat === c ? 600                                   : 400,
-              }}
-            >
+            <button key={c} className="vam-chip" onClick={() => setCat(c)} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: `1px solid ${cat === c ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.07)'}`, background: cat === c ? 'rgba(220,38,38,0.15)' : 'rgba(255,255,255,0.03)', color: cat === c ? '#f87171' : '#475569', fontWeight: cat === c ? 600 : 400 }}>
               {c}
             </button>
           ))}
         </div>
       )}
-
       {filtered.length > 0 && (
         <VamSummary items={[
-          { label: 'Total Expenses', value: formatPeso(total),           color: '#f87171', bg: 'rgba(220,38,38,0.1)'    },
-          { label: 'Records',        value: String(filtered.length),     color: '#94a3b8', bg: 'rgba(255,255,255,0.04)' },
+          { label: 'Total Expenses', value: formatPeso(total),       color: '#f87171', bg: 'rgba(220,38,38,0.1)'    },
+          { label: 'Records',        value: String(filtered.length), color: '#94a3b8', bg: 'rgba(255,255,255,0.04)' },
           ...(cat !== 'All' ? [{ label: 'Filter', value: cat, color: '#fbbf24', bg: 'rgba(245,158,11,0.1)' }] : []),
         ]} />
       )}
-
       {filtered.length === 0 ? (
         <VamEmpty msg={q || cat !== 'All' ? 'No records match your filter' : 'No expense records yet'} />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map((e, i) => (
-            <div
-              key={e.id}
-              className="vam-row"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 11,
-                padding: '12px 13px',
-                background: 'rgba(255,255,255,0.025)',
-                border: '1px solid rgba(255,255,255,0.05)',
-                borderRadius: 11, cursor: 'default',
-                animationDelay: `${Math.min(i * 0.025, 0.3)}s`,
-              }}
-            >
+            <div key={e.id} className="vam-row" style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '12px 13px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 11, cursor: 'default', animationDelay: `${Math.min(i * 0.025, 0.3)}s` }}>
               <RowNum n={i + 1} color="#f87171" bg="rgba(220,38,38,0.12)" />
               <div style={{ flexShrink: 0, width: 105 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0' }}>{e.displayDate}</div>
                 <div style={{ fontSize: 11, color: '#334155', marginTop: 1 }}>{e.date}</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {e.description || '—'}
-                </div>
-                {e.category && (
-                  <span style={{ display: 'inline-block', marginTop: 3, padding: '1px 7px', borderRadius: 6, fontSize: 10, background: 'rgba(255,255,255,0.06)', color: '#475569' }}>
-                    {e.category}
-                  </span>
-                )}
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.description || '—'}</div>
+                {e.category && <span style={{ display: 'inline-block', marginTop: 3, padding: '1px 7px', borderRadius: 6, fontSize: 10, background: 'rgba(255,255,255,0.06)', color: '#475569' }}>{e.category}</span>}
               </div>
-              {e.addedBy && (
-                <div style={{ fontSize: 11, color: '#334155', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <i className="ti ti-user" style={{ fontSize: 10 }} />
-                  {e.addedBy}
-                </div>
-              )}
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#f87171', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>
-                {formatPeso(e.amount)}
-              </div>
+              {e.addedBy && <div style={{ fontSize: 11, color: '#334155', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}><i className="ti ti-user" style={{ fontSize: 10 }} />{e.addedBy}</div>}
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#f87171', letterSpacing: '-0.3px', flexShrink: 0, minWidth: 86, textAlign: 'right' }}>{formatPeso(e.amount)}</div>
             </div>
           ))}
         </div>
@@ -379,7 +310,7 @@ interface DashboardPageProps {
   sales:         SalesRecord[];
   expenses:      ExpenseRecord[];
   categories:    DistributionCategory[];
-  onSaveSale:    (date: string, amount: number, notes: string) => Promise<void>; // ← FIXED: async
+  onSaveSale:    (date: string, amount: number, notes: string) => Promise<void>;
   selectedDate?: string;
 }
 
@@ -392,8 +323,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const [entryDate,    setEntryDate]    = useState<string>(activeDate);
   const [notes,        setNotes]        = useState<string>('');
   const [saved,        setSaved]        = useState(false);
-  const [saving,       setSaving]       = useState(false);       // ← NEW: loading state
-  const [saveError,    setSaveError]    = useState<string | null>(null); // ← NEW: error state
+  const [saving,       setSaving]       = useState(false);
+  const [saveError,    setSaveError]    = useState<string | null>(null);
   const [salesOpen,    setSalesOpen]    = useState(false);
   const [expensesOpen, setExpensesOpen] = useState(false);
 
@@ -403,15 +334,14 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   const distResults = computeDistribution(amount, categories);
   const stats       = computeDashboardStats(sales, expenses, activeDate);
 
-  // ── FIXED: async handleSave that awaits DB operation ──
   const handleSave = useCallback(async () => {
     if (amount <= 0) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await onSaveSale(entryDate, amount, notes); // ← AWAIT the async save
+      await onSaveSale(entryDate, amount, notes);
       setSaved(true);
-      setSalesAmount('');                          // ← clear form on success
+      setSalesAmount('');
       setNotes('');
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -442,6 +372,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="entry-card">
           <div className="entry-title">Daily Sales Entry</div>
           <div className="entry-sub">Enter the total sales for {activeDate === todayIso() ? 'today' : entryDate}</div>
+
           <label className="form-label">Total Sales Amount</label>
           <div className="amount-wrap">
             <div className="amount-symbol">&#8369;</div>
@@ -458,21 +389,16 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             />
           </div>
           <div className="form-hint">Enter 0.00 if no sales today</div>
+
           <div className="form-row">
+            {/* ── Custom date picker ── */}
             <div>
               <label className="form-label">Date</label>
-              <div style={{ position: 'relative' }}>
-                <i className="ti ti-calendar" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 15, pointerEvents: 'none' }} aria-hidden="true" />
-                <input
-                  className="form-input"
-                  type="date"
-                  value={entryDate}
-                  onChange={e => setEntryDate(e.target.value)}
-                  style={{ paddingLeft: 34 }}
-                  aria-label="Entry date"
-                  disabled={saving}
-                />
-              </div>
+              <DatePicker
+                value={entryDate}
+                onChange={setEntryDate}
+                disabled={saving}
+              />
             </div>
             <div>
               <label className="form-label">Notes (Optional)</label>
@@ -487,21 +413,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
 
-          {/* ── Error message ── */}
           {saveError && (
-            <div style={{
-              marginTop: 10, padding: '10px 14px',
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 9, fontSize: 13, color: '#ef4444',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
+            <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 9, fontSize: 13, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 8 }}>
               <i className="ti ti-alert-circle" style={{ fontSize: 15, flexShrink: 0 }} />
               {saveError}
             </div>
           )}
 
-          {/* ── Save button ── */}
           <button
             className={`btn-save${saved ? ' success' : ''}`}
             onClick={handleSave}
@@ -621,7 +539,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({
   );
 };
 
-/* ── StatCard ── */
+// ─── StatCard ─────────────────────────────────────────────────
 interface StatCardProps { icon: string; iconBg: string; iconColor: string; label: string; value: string; change?: number; changeDir?: 'up' | 'dn'; note?: string; }
 const StatCard: React.FC<StatCardProps> = ({ icon, iconBg, iconColor, label, value, change, changeDir, note }) => (
   <div className="stat-card">

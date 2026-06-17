@@ -4,9 +4,9 @@ const log  = require('electron-log');
 const path = require('path');
 
 // ── Logging setup ─────────────────────────────────────────────
-log.transports.file.level    = 'info';
-autoUpdater.logger           = log;
-autoUpdater.autoDownload     = true;
+log.transports.file.level        = 'info';
+autoUpdater.logger               = log;
+autoUpdater.autoDownload         = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -18,7 +18,7 @@ function createWindow() {
     height:    800,
     minWidth:  1024,
     minHeight: 640,
-    show:      false,   // show after ready-to-show (no white flash)
+    show:      false,
     icon:      path.join(__dirname, '../src/assets/app-icon.ico'),
     title:     'Sales Flow',
     webPreferences: {
@@ -98,10 +98,13 @@ autoUpdater.on('download-progress', (progress) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   log.info('Update downloaded:', info.version);
-  // Send event to renderer — shows the in-app update banner
   const wins = BrowserWindow.getAllWindows();
   if (wins.length > 0) {
     wins[0].webContents.send('update-downloaded', info.version);
+    // ← Bridge version to notification bell in renderer
+    wins[0].webContents.executeJavaScript(
+      `window.__pendingUpdateVersion = '${info.version}'`
+    );
   }
 });
 

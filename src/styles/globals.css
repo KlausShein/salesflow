@@ -177,6 +177,38 @@ body {
   border-radius: 50%;
   border: 1.5px solid #fff;
 }
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+/* After */
+.stats-row,
+.bottom-grid {
+  position: relative;
+  z-index: 1;
+}
+
+.mid-grid {
+  position: relative;
+  z-index: 2;
+}
+
+.entry-card {
+  position: relative;
+  z-index: 10;
+}
+
+/* ── Topbar dropdowns always on top ── */
+.topbar {
+  z-index: 50;
+  position: relative;
+}
+
+.topbar-right {
+  position: relative;
+  z-index: 51;
+}
 
 /* ── Content area ── */
 .content {
