@@ -1,6 +1,6 @@
 {
   "name": "printpos-pro",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "PrintPOS Pro — Print Shop Sales Tracker & Financial Distribution System",
   "type": "module",
   "main": "electron/main.cjs",
@@ -29,7 +29,7 @@
       "provider": "github",
       "owner": "KlausShein",
       "repo": "salesflow",
-      "releaseType": "draft"
+      "releaseType": "release"
     },
     "win": {
       "target": [
