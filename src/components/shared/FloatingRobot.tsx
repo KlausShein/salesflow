@@ -14,7 +14,7 @@ const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001';
 const FloatingRobot: React.FC = () => {
   const [open, setOpen]         = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', text: "Hi! I'm your PrintPOS assistant. Ask me about today's sales, expenses, distributions, or anything about your business! 🖨️" },
+    { role: 'assistant', text: "Hi! I'm your AI Business assistant. Ask me about today's sales, expenses, distributions, or anything about your business! " },
   ]);
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -134,7 +134,7 @@ const FloatingRobot: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 18 }}>🤖</span>
               <div>
-                <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>PrintPOS Assistant</div>
+                <div style={{ color: '#fff', fontWeight: 600, fontSize: 14 }}>AI Business Assistant</div>
                 <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}>Powered by live data</div>
               </div>
             </div>
