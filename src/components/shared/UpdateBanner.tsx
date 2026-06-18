@@ -14,13 +14,17 @@ const UpdateBanner: React.FC = () => {
     });
 
     api.onUpdateProgress((percent: number) => {
-      setProgress(percent);
+      // Only update progress if we haven't received the final version yet
+      if (!updateVersion) {
+        setProgress(percent);
+      }
     });
 
+    // FIX: Only remove listeners on cleanup, don't reset state
+    // Removing setProgress(null) and setUpdateVersion(null) from here
+    // because they were clearing the banner on every re-render
     return () => {
       api.removeAllListeners?.();
-      setProgress(null);
-      setUpdateVersion(null);
     };
   }, []);
 
