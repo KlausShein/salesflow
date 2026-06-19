@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AuthProvider }  from './auth/AuthContext';
 import { useAuth }       from './auth/AuthContext';
 import ProtectedRoute    from './auth/ProtectedRoute';
@@ -28,8 +28,12 @@ import {
 import { useWorkingDays } from './hooks/useWorkingDays';
 import { useActivePage }  from './hooks';
 import { todayIso }       from './utils/helpers';
+import { supabase }       from './lib/supabase';
 
 initGeneralSettings();
+
+// ── Session timeout: 30 minutes of inactivity ─────────────────
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard:    'Dashboard',
@@ -73,6 +77,30 @@ const AppShell: React.FC = () => {
   const { currentTenantId } = useAuth();
 
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
+
+  // ── Session timeout ────────────────────────────────────────
+  const handleSessionTimeout = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(handleSessionTimeout, SESSION_TIMEOUT_MS);
+    };
+
+    // Reset timer on any user activity
+    const events = ['mousemove', 'keypress', 'click', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetTimer));
+    resetTimer(); // start the timer
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+    };
+  }, [handleSessionTimeout]);
 
   const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
     month: 'long', day: 'numeric', year: 'numeric',
@@ -143,7 +171,6 @@ const AppShell: React.FC = () => {
     <div className="app">
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
       <div className="main">
-        {/* ← sales and expenses added here */}
         <Topbar
           pageTitle={PAGE_TITLES[activePage] ?? ''}
           dateLabel={dateLabel}

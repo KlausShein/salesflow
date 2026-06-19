@@ -6,6 +6,30 @@ import LoadingScreen from '../components/shared/LoadingScreen';
 
 type Mode = 'owner' | 'staff' | 'signup';
 
+// ── Security helpers ──────────────────────────────────────────
+const sanitize = (str: string) => str.trim().replace(/[<>]/g, '');
+
+const validatePassword = (pwd: string): string | null => {
+  if (pwd.length < 8)            return 'Password must be at least 8 characters.';
+  if (!/[A-Z]/.test(pwd))        return 'Password must contain at least one uppercase letter.';
+  if (!/[0-9]/.test(pwd))        return 'Password must contain at least one number.';
+  return null;
+};
+
+// Password strength indicator
+const getPasswordStrength = (pwd: string): { label: string; color: string; width: string } => {
+  if (pwd.length === 0) return { label: '', color: 'transparent', width: '0%' };
+  let score = 0;
+  if (pwd.length >= 8)     score++;
+  if (/[A-Z]/.test(pwd))   score++;
+  if (/[0-9]/.test(pwd))   score++;
+  if (/[^A-Za-z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { label: 'Weak',   color: '#e74c3c', width: '25%'  };
+  if (score === 2) return { label: 'Fair',   color: '#f39c12', width: '50%'  };
+  if (score === 3) return { label: 'Good',   color: '#3498db', width: '75%'  };
+  return              { label: 'Strong', color: '#27ae60', width: '100%' };
+};
+
 export default function LoginPage() {
   const { ownerLogin, ownerSignUp, staffLogin } = useAuth();
 
@@ -20,18 +44,29 @@ export default function LoginPage() {
   const [loadingMsg,   setLoadingMsg]   = useState('');
   const [success,      setSuccess]      = useState('');
 
+  const passwordStrength = getPasswordStrength(password);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     if (mode === 'signup') {
-      if (!businessName.trim()) {
+      // Sanitize inputs
+      const cleanBusinessName = sanitize(businessName);
+      const cleanEmail        = sanitize(email);
+
+      if (!cleanBusinessName) {
         return setError('Please enter your business name.');
       }
+
+      // Validate password strength
+      const pwdError = validatePassword(password);
+      if (pwdError) return setError(pwdError);
+
       setLoadingMsg('Setting up your business account...');
       setLoading(true);
-      const result = await ownerSignUp(email, password, businessName.trim());
+      const result = await ownerSignUp(cleanEmail, password, cleanBusinessName);
       setLoading(false);
       if (!result.success) return setError(result.error ?? 'Sign up failed.');
       setSuccess('Account created! You can now sign in.');
@@ -40,18 +75,20 @@ export default function LoginPage() {
     }
 
     if (mode === 'owner') {
+      const cleanEmail = sanitize(email);
       setLoadingMsg('Signing in to your business...');
       setLoading(true);
-      const result = await ownerLogin(email, password);
+      const result = await ownerLogin(cleanEmail, password);
       setLoading(false);
       if (!result.success) return setError(result.error ?? 'Login failed.');
       return;
     }
 
     if (mode === 'staff') {
+      const cleanUsername = sanitize(username);
       setLoadingMsg('Signing in as staff...');
       setLoading(true);
-      const result = await staffLogin(username, password);
+      const result = await staffLogin(cleanUsername, password);
       setLoading(false);
       if (!result.success) return setError(result.error ?? 'Login failed.');
     }
@@ -100,13 +137,13 @@ export default function LoginPage() {
               <div style={styles.tabs}>
                 <button
                   style={{ ...styles.tab, ...(mode === 'owner'  ? styles.tabActive : {}) }}
-                  onClick={() => { setMode('owner');  setError(''); setSuccess(''); }}
+                  onClick={() => { setMode('owner');  setError(''); setSuccess(''); setPassword(''); }}
                 >
                   Business Login
                 </button>
                 <button
                   style={{ ...styles.tab, ...(mode === 'signup' ? styles.tabActive : {}) }}
-                  onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
+                  onClick={() => { setMode('signup'); setError(''); setSuccess(''); setPassword(''); }}
                 >
                   Sign Up
                 </button>
@@ -147,6 +184,7 @@ export default function LoginPage() {
                       onChange={(e) => setBusinessName(e.target.value)}
                       style={styles.input}
                       required
+                      maxLength={100}
                     />
                   </div>
                 </div>
@@ -172,6 +210,7 @@ export default function LoginPage() {
                       style={styles.input}
                       autoComplete="email"
                       required
+                      maxLength={254}
                     />
                   </div>
                 </div>
@@ -197,6 +236,7 @@ export default function LoginPage() {
                       style={styles.input}
                       autoComplete="username"
                       required
+                      maxLength={50}
                     />
                   </div>
                 </div>
@@ -221,6 +261,7 @@ export default function LoginPage() {
                     style={styles.input}
                     autoComplete="current-password"
                     required
+                    maxLength={128}
                   />
                   <button type="button" onClick={() => setShowPass(!showPass)}
                     style={styles.eyeBtn} title={showPass ? 'Hide' : 'Show'}>
@@ -239,6 +280,40 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+
+                {/* Password strength indicator — signup only */}
+                {mode === 'signup' && password.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{
+                      height: 4, background: 'rgba(255,255,255,0.08)',
+                      borderRadius: 99, overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: passwordStrength.width,
+                        background: passwordStrength.color,
+                        borderRadius: 99,
+                        transition: 'width 0.3s ease, background 0.3s ease',
+                      }} />
+                    </div>
+                    <div style={{
+                      fontSize: 11, marginTop: 4,
+                      color: passwordStrength.color, fontWeight: 600,
+                    }}>
+                      {passwordStrength.label}
+                      {passwordStrength.label === 'Weak' || passwordStrength.label === 'Fair'
+                        ? ' — Add uppercase letters, numbers, or symbols'
+                        : ''}
+                    </div>
+                  </div>
+                )}
+
+                {/* Password requirements hint — signup only */}
+                {mode === 'signup' && (
+                  <div style={{ fontSize: 11, color: '#6b7db3', marginTop: 4 }}>
+                    Min. 8 characters, one uppercase letter, one number.
+                  </div>
+                )}
               </div>
 
               {error   && (
@@ -264,13 +339,13 @@ export default function LoginPage() {
 
             {mode === 'owner' && (
               <button style={styles.switchBtn}
-                onClick={() => { setMode('staff'); setError(''); setSuccess(''); }}>
+                onClick={() => { setMode('staff'); setError(''); setSuccess(''); setPassword(''); }}>
                 Sign in as staff instead →
               </button>
             )}
             {mode === 'staff' && (
               <button style={styles.switchBtn}
-                onClick={() => { setMode('owner'); setError(''); setSuccess(''); }}>
+                onClick={() => { setMode('owner'); setError(''); setSuccess(''); setPassword(''); }}>
                 ← Back to business login
               </button>
             )}

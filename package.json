@@ -1,6 +1,6 @@
 {
   "name": "printpos-pro",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "SalesFlow, Sales Tracking & Business Management System",
   "type": "module",
   "main": "electron/main.cjs",
@@ -22,7 +22,7 @@
     "productName": "Sales Flow",
     "copyright": "Copyright © 2026 Sales Flow",
     "directories": {
-      "output": "dist-electron",
+      "output": "dist-electron-new",
       "buildResources": "build"
     },
     "publish": {
