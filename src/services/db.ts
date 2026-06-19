@@ -18,9 +18,6 @@ import { addSystemLog } from './systemLogs';
 const isValidUUID = (id: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
-/**
- * Get current user ID from Supabase auth or localStorage
- */
 const getUid = async (): Promise<string> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -38,9 +35,6 @@ const getUid = async (): Promise<string> => {
   throw new Error('Not authenticated');
 };
 
-/**
- * Get current tenant ID from localStorage or cache
- */
 const getCurrentTenantId = async (): Promise<string> => {
   try {
     const stored = localStorage.getItem('printpos_active_tenant');
@@ -52,7 +46,6 @@ const getCurrentTenantId = async (): Promise<string> => {
     }
   } catch { /* ignore */ }
 
-  // Fallback: get user's primary tenant from DB
   const uid = await getUid();
   const { data, error } = await supabase
     .from('user_business_roles')
@@ -68,9 +61,6 @@ const getCurrentTenantId = async (): Promise<string> => {
   return data.tenant_id;
 };
 
-/**
- * Get all tenants for current user
- */
 export const getUserTenants = async (): Promise<Tenant[]> => {
   const uid = await getUid();
   const { data, error } = await supabase
@@ -82,9 +72,6 @@ export const getUserTenants = async (): Promise<Tenant[]> => {
   return (data ?? []).map((d: any) => d.tenants).filter(Boolean);
 };
 
-/**
- * Create a new tenant (business)
- */
 export const createTenant = async (businessName: string): Promise<Tenant> => {
   const uid = await getUid();
 
@@ -113,9 +100,6 @@ export const createTenant = async (businessName: string): Promise<Tenant> => {
   };
 };
 
-/**
- * Switch to a different tenant
- */
 export const switchTenant = async (tenantId: string): Promise<void> => {
   localStorage.setItem('printpos_active_tenant', JSON.stringify({ tenantId }));
 };
@@ -217,24 +201,30 @@ export const upsertSale = async (
   return row2Sale(data);
 };
 
+// FIXED: uses bypass RPC so staff (anon role, no auth.uid()) can delete too
 export const deleteSale = async (id: string): Promise<void> => {
   const tenantId = await getCurrentTenantId();
-  const { error } = await supabase
-    .from('sales_records')
-    .delete()
-    .eq('id', id)
-    .eq('tenant_id', tenantId);
-  if (error) throw error;
+  const { error } = await supabase.rpc('delete_sale_bypass', {
+    p_id:        id,
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    console.error('[deleteSale] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to delete sale');
+  }
   addSystemLog('Sale Deleted', `Sale ID: ${id}`, 'delete');
 };
 
+// FIXED: uses bypass RPC so staff (anon role, no auth.uid()) can delete too
 export const deleteAllSales = async (): Promise<void> => {
   const tenantId = await getCurrentTenantId();
-  const { error } = await supabase
-    .from('sales_records')
-    .delete()
-    .eq('tenant_id', tenantId);
-  if (error) throw error;
+  const { error } = await supabase.rpc('delete_all_sales_bypass', {
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    console.error('[deleteAllSales] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to delete all sales');
+  }
   addSystemLog('All Sales Deleted', 'All sales records deleted', 'delete');
 };
 
@@ -251,24 +241,30 @@ export const fetchExpenses = async (): Promise<ExpenseRecord[]> => {
   return (data ?? []).map(row2Expense);
 };
 
+// FIXED: uses bypass RPC instead of direct .insert() so staff
+// (anon role, auth.uid() always null) can add expenses.
 export const insertExpense = async (
   expense: Omit<ExpenseRecord, 'id' | 'tenantId'>
 ): Promise<ExpenseRecord> => {
   const tenantId = await getCurrentTenantId();
+
   const { data, error } = await supabase
-    .from('expense_records')
-    .insert({
-      tenant_id:    tenantId,
-      date:         expense.date,
-      display_date: expense.displayDate,
-      description:  expense.description,
-      category:     expense.category,
-      amount:       expense.amount,
-      added_by:     expense.addedBy,
+    .rpc('insert_expense_bypass', {
+      p_tenant_id:    tenantId,
+      p_date:         expense.date,
+      p_display_date: expense.displayDate,
+      p_description:  expense.description ?? '',
+      p_category:     expense.category,
+      p_amount:       expense.amount,
+      p_added_by:     expense.addedBy,
     })
-    .select()
     .single();
-  if (error) throw error;
+
+  if (error) {
+    console.error('[insertExpense] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to save expense');
+  }
+  if (!data) throw new Error('Expense saved but no data returned');
 
   addSystemLog(
     'Expense Added',
@@ -279,14 +275,17 @@ export const insertExpense = async (
   return row2Expense(data);
 };
 
+// FIXED: uses bypass RPC so staff can delete expenses too
 export const deleteExpense = async (id: string): Promise<void> => {
   const tenantId = await getCurrentTenantId();
-  const { error } = await supabase
-    .from('expense_records')
-    .delete()
-    .eq('id', id)
-    .eq('tenant_id', tenantId);
-  if (error) throw error;
+  const { error } = await supabase.rpc('delete_expense_bypass', {
+    p_id:        id,
+    p_tenant_id: tenantId,
+  });
+  if (error) {
+    console.error('[deleteExpense] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to delete expense');
+  }
   addSystemLog('Expense Deleted', `Expense ID: ${id}`, 'delete');
 };
 
@@ -303,28 +302,37 @@ export const fetchCustomers = async (): Promise<Customer[]> => {
   return (data ?? []).map(row2Customer);
 };
 
+// FIXED: uses bypass RPC instead of direct .insert() so staff can add customers
 export const insertCustomer = async (
   c: Omit<Customer, 'id' | 'tenantId'>
 ): Promise<Customer> => {
   const tenantId = await getCurrentTenantId();
+
   const { data, error } = await supabase
-    .from('customers')
-    .insert({
-      tenant_id:       tenantId,
-      name:            c.name,
-      phone:           c.phone,
-      email:           c.email,
-      total_purchases: c.totalPurchases,
+    .rpc('insert_customer_bypass', {
+      p_tenant_id:       tenantId,
+      p_name:            c.name,
+      p_phone:           c.phone,
+      p_email:           c.email,
+      p_total_purchases: c.totalPurchases ?? 0,
     })
-    .select()
     .single();
-  if (error) throw error;
+
+  if (error) {
+    console.error('[insertCustomer] RPC error:', error);
+    throw new Error(error.message ?? 'Failed to save customer');
+  }
+  if (!data) throw new Error('Customer saved but no data returned');
 
   addSystemLog('Customer Added', `${c.name} — ${c.phone}`, 'sale');
   return row2Customer(data);
 };
 
 // ─── System Users ────────────────────────────────────────────
+// NOTE: insertSystemUser is only ever called by Admins (who DO have
+// a Supabase Auth session via ownerLogin), so it can safely use
+// direct table inserts protected by the user_business_roles_insert
+// and system_users_insert RLS policies (which check auth.uid()).
 
 export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
   const tenantId = await getCurrentTenantId();
@@ -340,14 +348,15 @@ export const fetchSystemUsers = async (): Promise<SystemUser[]> => {
 
 /**
  * Insert a system user and assign to current tenant.
- * FIXED: accepts explicit tenantId from useSupabase hook to ensure
+ * Accepts explicit tenantId from useSupabase hook to ensure
  * new users always get linked to the correct tenant.
+ * Called by Admin only (has Supabase Auth session) — direct
+ * inserts are protected by RLS policies using auth.uid().
  */
 export const insertSystemUser = async (
   u:                 Omit<SystemUser, 'id'>,
-  explicitTenantId?: string                 // ← FIXED: accept tenant from caller
+  explicitTenantId?: string
 ): Promise<SystemUser> => {
-  // Use explicit tenantId if provided and valid, otherwise fall back
   const tenantId = (explicitTenantId && isValidUUID(explicitTenantId))
     ? explicitTenantId
     : await getCurrentTenantId();
@@ -391,7 +400,13 @@ export const insertSystemUser = async (
 
   if (roleError) {
     console.error('[insertSystemUser] Failed to link user to tenant:', roleError);
-    // User was created — log but don't throw so caller can see partial success
+    // Roll back: delete the orphaned system_users row so we don't
+    // leave a "ghost" user with no tenant link (the bug we hit earlier)
+    await supabase.from('system_users').delete().eq('id', userData.id);
+    throw new Error(
+      `Failed to link new user to your business: ${roleError.message}. ` +
+      `The user was not created — please try again.`
+    );
   }
 
   addSystemLog('User Created', `${u.name} (${u.role}) — @${u.username}`, 'auth');
